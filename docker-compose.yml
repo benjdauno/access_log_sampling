@@ -4,9 +4,9 @@ services:
     image: nginx:latest
     container_name: nginx
     ports:
-      - "8081:80"  # Expose NGINX directly for testing if needed
+      - "8081:80"
     volumes:
-      - ./nginx_logs:/var/log/nginx  # Mount logs for access
+      - ./nginx_logs:/var/log/nginx
     logging:
       options:
         max-size: "10m"
@@ -17,8 +17,9 @@ services:
     container_name: envoy
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
+      - ./envoy_logs:/var/log/envoy  # Map host directory to container log directory
     ports:
-      - "8080:8080"  # Envoy listener port
-      - "9901:9901"  # Envoy admin interface
+      - "8080:8080"
+      - "9901:9901"
     depends_on:
       - nginx

@@ -25,9 +25,17 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
                 access_log:
                   - name: envoy.access_loggers.file
+                    filter:
+                      runtime_filter:
+                        # Runtime key to control sampling percentage
+                        runtime_key: "access_log.sampling"
+                        # Default sampling percentage: 50%
+                        percent_sampled:
+                          numerator: 20
+                          denominator: HUNDRED
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
-                      path: /dev/stdout
+                      path: /var/log/envoy/access.log
                       log_format:
                         text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\"\n"
   clusters:
