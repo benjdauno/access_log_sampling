@@ -1,0 +1,24 @@
+version: "3.9"
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "8081:80"  # Expose NGINX directly for testing if needed
+    volumes:
+      - ./nginx_logs:/var/log/nginx  # Mount logs for access
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  envoy:
+    image: envoyproxy/envoy:v1.32.1
+    container_name: envoy
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - "8080:8080"  # Envoy listener port
+      - "9901:9901"  # Envoy admin interface
+    depends_on:
+      - nginx
