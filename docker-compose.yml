@@ -3,10 +3,18 @@ services:
   nginx:
     image: nginx:latest
     container_name: nginx
-    ports:
-      - "8081:80"
     volumes:
       - ./nginx_logs:/var/log/nginx
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  apache:
+    image: httpd:latest
+    container_name: apache
+    volumes:
+      - ./apache_logs:/usr/local/apache2/logs
     logging:
       options:
         max-size: "10m"
@@ -17,9 +25,10 @@ services:
     container_name: envoy
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
-      - ./envoy_logs:/var/log/envoy  # Map host directory to container log directory
+      - ./envoy_logs:/var/log/envoy
     ports:
       - "8080:8080"
       - "9901:9901"
     depends_on:
       - nginx
+      - apache
