@@ -49,6 +49,7 @@ services:
       - "55680:55680"  # OpenTelemetry receiver for traces
     volumes:
       - ./otel-config.yaml:/etc/otel-config.yaml
+      - ./otel-logs:/var/log/otel-logs
     command: ["--config", "/etc/otel-config.yaml"]
     logging:
       driver: "json-file"

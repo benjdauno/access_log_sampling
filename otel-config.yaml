@@ -3,6 +3,9 @@ receivers:
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317  # Endpoint to receive OTLP data from Envoy
+      http:  # This receiver supports health checks
+
+
 
 processors:
   batch:  # Adds batching of data to reduce the number of outgoing requests
@@ -10,18 +13,19 @@ processors:
     send_batch_size: 1024
 
 exporters:
-  #file:
-  #  path: ./otel-logs.json  # File exporter to save logs
-  #  rotation:
-  #    max_size_megabytes: 10
-  #    max_backup_count: 5
+  file:
+    path: /var/log/otel-logs/otel-access-logs.json   # File exporter to save logs
+    rotation:
+      max_megabytes: 10
+      max_backups: 5
 
   debug:
-    verbosity: detailed  # Console logging for debugging and verification
+   # verbosity: detailed  # Console logging for debugging and verification
 
 service:
   pipelines:
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [debug,file]
+

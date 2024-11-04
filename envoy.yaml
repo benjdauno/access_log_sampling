@@ -78,6 +78,7 @@ static_resources:
       connect_timeout: 0.25s
       type: strict_dns
       lb_policy: round_robin
+      http2_protocol_options: {}
       load_assignment:
         cluster_name: otel_cluster
         endpoints:
@@ -87,6 +88,14 @@ static_resources:
                     socket_address:
                       address: otel-collector
                       port_value: 4317
+      health_checks:  # Add health check configuration here
+        - timeout: 1s
+          interval: 5s
+          unhealthy_threshold: 2
+          healthy_threshold: 2
+          grpc_health_check:  # Use gRPC health check for the OTLP service
+            service_name: ""
+          event_log_path: "/var/log/envoy/otel_cluster_health_check.log" 
 admin:
   access_log_path: "/dev/null"
   address:
