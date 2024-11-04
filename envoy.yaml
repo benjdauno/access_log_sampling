@@ -14,34 +14,44 @@ static_resources:
                 route_config:
                   name: local_route
                   virtual_hosts:
-                    - name: local_service
+                    - name: backend
                       domains: ["*"]
                       routes:
-                        - match: { prefix: "/" }
-                          route: { cluster: nginx_service }
+                        - match: { prefix: "/nginx" }
+                          route:
+                            cluster: nginx_service
+                            prefix_rewrite: "/"
+                        - match: { prefix: "/apache" }
+                          route:
+                            cluster: apache_service
+                            prefix_rewrite: "/"
+
                 http_filters:
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
                 access_log:
                   - name: envoy.access_loggers.file
-                    filter:
-                      runtime_filter:
-                        # Runtime key to control sampling percentage
-                        runtime_key: "access_log.sampling"
-                        # Default sampling percentage: 50%
-                        percent_sampled:
-                          numerator: 20
-                          denominator: HUNDRED
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
                       path: /var/log/envoy/access.log
                       log_format:
                         text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\"\n"
+                  - name: envoy.access_loggers.open_telemetry
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.open_telemetry.v3.OpenTelemetryAccessLogConfig
+                      common_config:
+                        log_name: "envoy-access"
+                        grpc_service:
+                          envoy_grpc:
+                            cluster_name: otel_cluster
+                      body:
+                        string_value: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\""
   clusters:
     - name: nginx_service
       connect_timeout: 0.25s
-      type: LOGICAL_DNS
+      type: strict_dns
+      lb_policy: round_robin
       load_assignment:
         cluster_name: nginx_service
         endpoints:
@@ -51,6 +61,32 @@ static_resources:
                     socket_address:
                       address: nginx
                       port_value: 80
+    - name: apache_service
+      connect_timeout: 0.25s
+      type: strict_dns
+      lb_policy: round_robin
+      load_assignment:
+        cluster_name: apache_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: apache
+                      port_value: 80
+    - name: otel_cluster
+      connect_timeout: 0.25s
+      type: strict_dns
+      lb_policy: round_robin
+      load_assignment:
+        cluster_name: otel_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: otel-collector
+                      port_value: 4317
 admin:
   access_log_path: "/dev/null"
   address:
