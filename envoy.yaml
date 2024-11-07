@@ -45,8 +45,16 @@ static_resources:
                         grpc_service:
                           envoy_grpc:
                             cluster_name: otel_cluster
+                      attributes:
+                        values:
+                          key: sampling_rate
+                          value: 
+                            string_value: "%REQ(LATENCY_SAMPLING_RATE)%"
+                          
+                          
+                          
                       body:
-                        string_value: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\""
+                        string_value: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(LATENCY_SAMPLING_RATE)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\""
   clusters:
     - name: nginx_service
       connect_timeout: 0.25s
