@@ -1,0 +1,22 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:  # This receiver supports health checks
+
+
+
+processors:
+  batch:  # Adds batching of data to reduce the number of outgoing requests
+    timeout: 1s
+    send_batch_size: 1024
+exporters:
+  debug:
+   # verbosity: detailed  # Console logging for debugging and verification
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
