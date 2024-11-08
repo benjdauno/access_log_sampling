@@ -7,8 +7,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"text/tabwriter"
 )
+
+// Define a list of endpoints to exclude from sampling
+var excludedEndpoints = map[string]bool{
+	"/important_endpoint": true,
+	// Add more endpoints as needed
+}
 
 func main() {
 	// Set the Prometheus API URL
@@ -26,7 +33,7 @@ func main() {
 	queryAndPrintResults(apiURL, rpcQuery, "rpc2_method")
 }
 
-// queryAndPrintResults executes a Prometheus query and prints results in a table
+// queryAndPrintResults executes a Prometheus query and prints results in a table with sampling rates
 func queryAndPrintResults(apiURL, query, metricLabel string) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -40,7 +47,7 @@ func queryAndPrintResults(apiURL, query, metricLabel string) {
 	req.URL.RawQuery = q.Encode()
 
 	// Add headers with your API token
-	req.Header.Add("Authorization", "Bearer ADD TOKEN")
+	req.Header.Add("Authorization", "Bearer TOKEN")
 	req.Header.Add("Accept", "application/json")
 
 	// Execute the request
@@ -81,8 +88,8 @@ func queryAndPrintResults(apiURL, query, metricLabel string) {
 
 	// Prepare the table writer
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.Debug)
-	fmt.Fprintf(writer, "%s\tTotal Volume\n", metricLabel)
-	fmt.Fprintf(writer, "-----------\t------------\n")
+	fmt.Fprintf(writer, "%s\tTotal Volume\tSampling Rate\n", metricLabel)
+	fmt.Fprintf(writer, "-----------\t------------\t-------------\n")
 
 	// Iterate over the results and print each entry in a table format
 	for _, item := range results {
@@ -103,11 +110,44 @@ func queryAndPrintResults(apiURL, query, metricLabel string) {
 		if !valueOk || len(value) < 2 {
 			continue
 		}
-		totalVolume := value[1].(string)
+		totalVolumeStr := value[1].(string)
+		totalVolume, err := strconv.ParseFloat(totalVolumeStr, 64)
+		if err != nil {
+			log.Printf("Failed to parse total volume for %s: %v", label, err)
+			continue
+		}
 
-		fmt.Fprintf(writer, "%s\t%s\n", label, totalVolume)
+		// Calculate sampling rate based on volume guidelines
+		samplingRate := calculateSamplingRate(totalVolume)
+
+		// Apply exclusion if endpoint is in excludedEndpoints list
+		if excludedEndpoints[label] {
+			samplingRate = "Do Not Sample"
+		}
+
+		fmt.Fprintf(writer, "%s\t%.2f\t%s\n", label, totalVolume, samplingRate)
 	}
 
 	// Flush the writer to output the table
 	writer.Flush()
+}
+
+// calculateSamplingRate determines the sampling rate based on monthly volume
+func calculateSamplingRate(volume float64) string {
+	switch {
+	case volume > 10_000_000:
+		return "1%"
+	case volume > 1_000_000:
+		return "2%"
+	case volume > 500_000:
+		return "5%"
+	case volume > 200_000:
+		return "10%"
+	case volume > 50_000:
+		return "20%"
+	case volume < 50_000:
+		return "Do Not Sample"
+	default:
+		return "Do Not Sample"
+	}
 }
