@@ -20,22 +20,22 @@ processors:
   #  attribute_source: record
   #  from_attribute: service
 exporters:
-  file:
-    path: /var/log/otel-logs/otel-access-logs.json   # File exporter to save logs
-    rotation:
-      max_megabytes: 10
-      max_backups: 5
+  #file:
+  #  path: /var/log/otel-logs/otel-access-logs.json   # File exporter to save logs
+  #  rotation:
+  #    max_megabytes: 10
+  #    max_backups: 5
 
   debug:
    # verbosity: detailed  # Console logging for debugging and verification
-  otlp:
-    endpoint: "host.docker.internal:4317"
-    tls:
-      insecure: true
+  #otlp:
+  #  endpoint: "host.docker.internal:4317"
+  #  tls:
+  #    insecure: true
 
 service:
   pipelines:
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug,file,otlp]
+      exporters: [debug]
