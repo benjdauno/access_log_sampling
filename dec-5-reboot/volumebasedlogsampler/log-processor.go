@@ -35,6 +35,8 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Capabilities() consumer.Capab
 }
 
 // Start fetches data from Prometheus and stores sampling rates in a map.
+// Overwriting ctx produces a warning, in the vscode go linter, but this is how the OTEL docs do this, so until otherwise indicated by OTEL docs,
+// Please leave the ctx manipulation as is.
 func (volBLogProc *volumeBasedLogSamplerProcessor) Start(ctx context.Context, host component.Host) error {
 	volBLogProc.host = host
 	ctx = context.Background()
@@ -52,14 +54,27 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Start(ctx context.Context, ho
 		return fmt.Errorf("PROMETHEUS_API_TOKEN not set")
 	}
 
-	// Prometheus API URL
-	apiURL := "https://affirm.chronosphere.io/data/metrics/api/v1/query"
-	httpQuery := `sum(sum_over_time(http_server_handled_total{environment="prod",mode="live",path!~"/ping|/healthz|/_healthz"}[30d])) by (path)`
+	// Define the queries
+	queries := []struct {
+		query       string
+		metricLabel string
+	}{
+		{
+			query:       `sum(sum_over_time(http_server_handled_total{environment="prod",mode="live",path!~"/ping|/healthz|/_healthz"}[30d])) by (path)`,
+			metricLabel: "path",
+		},
+		{
+			query:       `sum(sum_over_time(rpc2_server_handled_total{environment="prod",mode="live"}[30d])) by (rpc2_method)`,
+			metricLabel: "rpc2_method",
+		},
+	}
 
-	// Perform the query and populate sampling rates map
-	if err := volBLogProc.queryAndStoreSamplingRates(apiURL, httpQuery, "path", token); err != nil {
-		volBLogProc.logger.Error("Failed to query Prometheus", zap.Error(err))
-		return err
+	// Execute each query and merge results
+	for _, q := range queries {
+		if err := volBLogProc.queryAndStoreSamplingRates("https://affirm.chronosphere.io/data/metrics/api/v1/query", q.query, q.metricLabel, token); err != nil {
+			volBLogProc.logger.Error("Failed to query Prometheus", zap.String("query", q.query), zap.Error(err))
+			return err
+		}
 	}
 
 	return nil
@@ -186,10 +201,8 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) queryAndStoreSamplingRates(ap
 		// Calculate sampling rate
 		samplingRate := calculateSamplingRate(totalVolume)
 
-		// Store the sampling rate in the map, excluding specific endpoints if necessary
-		//if !excludedEndpoints[label] {
+		// Store the sampling rate in the map
 		volBLogProc.samplingRates[label] = samplingRate
-		//}
 	}
 	return nil
 }
