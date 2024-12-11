@@ -18,11 +18,13 @@ RUN curl -fsSL https://get.docker.com -o get-docker.sh \
 RUN curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose \
     && chmod +x /usr/local/bin/docker-compose
 
-# Install the OpenTelemetry Collector Builder (ocb)
+# Install the OpenTelemetry Collector Builder (ocb) & Go debugger
 RUN curl --proto '=https' --tlsv1.2 -fL -o /tmp/ocb \
     https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.115.0/ocb_0.115.0_linux_amd64 && \
     chmod +x /tmp/ocb && \
-    mv /tmp/ocb /usr/local/bin/ocb
+    mv /tmp/ocb /usr/local/bin/ocb &&\
+    go install github.com/go-delve/delve/cmd/dlv@latest
+
 
 
 WORKDIR /workspace

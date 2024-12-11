@@ -4,4 +4,4 @@ nginx_logs/
 otel_logs/
 
 endpoint_categorizer_results/
-.vscode/
+.env

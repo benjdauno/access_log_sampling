@@ -15,10 +15,18 @@ Next, this repository is specifically based on the OTEL documentation to build [
 
 ## Laptop Setup / Prerequisites
 
-- [The Opentelemetry Collector Builder](https://opentelemetry.io/docs/collector/custom-collector/) (ocb)
-- Golang (Any verison >1.21 should be fine)
-- [telemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) utility
+- DevContainers extension (VSCode preferred)
 - Docker & Docker Compose
+
+This project uses a devcontainer as a development environment as a means to provide a homogenous development experience to anyone working on the project. Contributors will need to build the development container before starting, and can then open it from the menu on the bottom left corner of VSCode.
+
+The devcontainer installs:
+
+- Golang version 1.23 
+- [The Opentelemetry Collector Builder](https://opentelemetry.io/docs/collector/custom-collector/) (ocb) version 0.115.0
+- dlv (Golang debugger)
+- Docker CLI (Note that the docker socket is actually shared with the host machine, but at the time or writing, this is fine.)
+
 
 ### VolumeBasedLogSampler
 
