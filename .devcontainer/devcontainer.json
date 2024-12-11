@@ -1,0 +1,24 @@
+{
+    "name": "OpenTelemetry Collector Dev",
+    
+    "build": {
+      
+      "dockerfile": "Dockerfile"
+    },
+    "features": {
+      "ghcr.io/devcontainers/features/docker-from-docker:1": {}
+    },
+    "remoteUser": "root",
+    "customizations": {
+      "vscode": {
+        "settings": {"terminal.integrated.defaultProfile.linux": "bash"},
+        "extensions": [
+          "golang.go",
+          "ms-azuretools.vscode-docker"
+        ]
+      }
+    },
+    "forwardPorts": [8080, 9901],
+    "postCreateCommand": "ocb --help"
+  }
+  
