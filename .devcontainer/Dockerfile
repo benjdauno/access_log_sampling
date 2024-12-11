@@ -23,7 +23,8 @@ RUN curl --proto '=https' --tlsv1.2 -fL -o /tmp/ocb \
     https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.115.0/ocb_0.115.0_linux_amd64 && \
     chmod +x /tmp/ocb && \
     mv /tmp/ocb /usr/local/bin/ocb &&\
-    go install github.com/go-delve/delve/cmd/dlv@latest
+    go install github.com/go-delve/delve/cmd/dlv@latest &&\
+    go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@v0.115.0
 
 
 
