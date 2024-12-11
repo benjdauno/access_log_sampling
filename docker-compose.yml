@@ -6,7 +6,7 @@ services:
     ports:
       - "8081:80"
     volumes:
-      - ./nginx_logs:/var/log/nginx
+      - ./nginx_logs:/var/log/nginx:rw
     logging:
       driver: "json-file"
       options:
@@ -19,7 +19,7 @@ services:
     ports:
       - "8082:80"
     volumes:
-      - ./apache_logs:/usr/local/apache2/logs
+      - ./apache_logs:/usr/local/apache2/logs:rw
     logging:
       driver: "json-file"
       options:
