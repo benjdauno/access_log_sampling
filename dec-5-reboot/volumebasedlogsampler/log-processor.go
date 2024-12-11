@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -26,9 +25,9 @@ type volumeBasedLogSamplerProcessor struct {
 	nextConsumer  consumer.Logs
 	config        *Config
 	samplingRates map[string]float32 // To store sampling rates based on endpoint volume
-	mu            sync.RWMutex       // Mutex to handle concurrent map access
-	environment   string             // "dev", "stage", or "prod"
-	queryInterval time.Duration      // Query interval for development
+
+	environment   string        // "dev", "stage", or "prod"
+	queryInterval time.Duration // Query interval for development
 }
 
 // Capabilities implements processor.Logs.
@@ -43,8 +42,6 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Start(ctx context.Context, ho
 	volBLogProc.host = host
 	ctx = context.Background()
 	ctx, volBLogProc.cancel = context.WithCancel(ctx)
-	volBLogProc.mu.Lock()
-	defer volBLogProc.mu.Unlock()
 
 	// Initialize the map to store sampling rates
 	volBLogProc.samplingRates = make(map[string]float32)
@@ -56,11 +53,9 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Start(ctx context.Context, ho
 		volBLogProc.logger.Error("PROMETHEUS_API_TOKEN environment variable not set")
 		return fmt.Errorf("PROMETHEUS_API_TOKEN not set")
 	}
-
 	if err := volBLogProc.getSamplingRates(token); err != nil {
 		return fmt.Errorf("failed to fetch initial sampling rates: %w", err)
 	}
-
 	// Set up periodic query execution
 	go volBLogProc.refreshSamplingRates(ctx, token)
 	return nil
@@ -155,8 +150,6 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) getSamplingRates(token string
 	newSamplingRates := volBLogProc.buildSamplingRateTable(rawData)
 
 	// Atomically update the map.
-	volBLogProc.mu.Lock()
-	defer volBLogProc.mu.Unlock()
 	volBLogProc.samplingRates = newSamplingRates
 
 	return nil
@@ -201,9 +194,24 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) buildSamplingRateTable(data [
 	newRates := make(map[string]float32)
 
 	for _, item := range data {
-		label := item["label"].(string)
-		totalVolume, _ := strconv.ParseInt(item["value"].(string), 10, 64)
-		newRates[label] = calculateSamplingRate(totalVolume)
+		// Extract the label map
+		metric := item["metric"].(map[string]interface{})
+
+		// Extract the label key and value (assumes there's only one key-value pair in the map)
+		var labelValue string
+
+		for _, value := range metric {
+
+			labelValue = value.(string)
+			break // Only one label key is expected
+		}
+
+		// Extract volume
+		volumeStr := item["value"].([]interface{})[1].(string)
+		totalVolume, _ := strconv.ParseInt(volumeStr, 10, 64)
+
+		// Store the sampling rate using the label value as the key
+		newRates[labelValue] = calculateSamplingRate(totalVolume)
 	}
 
 	return newRates
@@ -217,13 +225,16 @@ func executePrometheusQuery(apiURL, query, token string) ([]map[string]interface
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
+	// Add query parameters
 	q := req.URL.Query()
 	q.Add("query", query)
 	req.URL.RawQuery = q.Encode()
 
+	// Set headers
 	req.Header.Add("Authorization", "Bearer "+token)
 	req.Header.Add("Accept", "application/json")
 
+	// Execute the HTTP request
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
@@ -235,13 +246,29 @@ func executePrometheusQuery(apiURL, query, token string) ([]map[string]interface
 		return nil, fmt.Errorf("failed to get data: %s", bodyBytes)
 	}
 
-	var result map[string]interface{}
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	_ = json.Unmarshal(bodyBytes, &result)
+	// Parse the response body
+	var parsedResponse struct {
+		Status string `json:"status"`
+		Data   struct {
+			ResultType string                   `json:"resultType"`
+			Result     []map[string]interface{} `json:"result"`
+		} `json:"data"`
+	}
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
 
-	data, _ := result["data"].(map[string]interface{})
-	rawResults, _ := data["result"].([]map[string]interface{})
-	return rawResults, nil
+	if err := json.Unmarshal(bodyBytes, &parsedResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	// Check the status field
+	if parsedResponse.Status != "success" {
+		return nil, fmt.Errorf("Prometheus query failed with status: %s", parsedResponse.Status)
+	}
+
+	return parsedResponse.Data.Result, nil
 }
 
 // calculatePreviousMonthOffset calculates the Prometheus offset for the previous month.
