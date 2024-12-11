@@ -14,7 +14,7 @@ import (
 	otlpexporter "go.opentelemetry.io/collector/exporter/otlpexporter"
 	batchprocessor "go.opentelemetry.io/collector/processor/batchprocessor"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
-	volumebasedlogsampler "github.com/affirm/opentelemetry-custom-collector/logprocessor/volumebasedlogsampler"
+	volumebasedlogsampler "volumebasedlogsampler"
 
 )
 

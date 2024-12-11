@@ -1,5 +1,5 @@
 dist:
-  module: go.opentelemetry.io/collector/cmd/volumebasedsampler
+  module: go.opentelemetry.io/collector/cmd/affirm-otelcol
   name: affirm-otelcol
   description: OTEL collector with custom components developped at Affirm
   output_path: ./affirm-otelcol

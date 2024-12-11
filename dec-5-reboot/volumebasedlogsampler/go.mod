@@ -1,4 +1,4 @@
-module github.com/affirm/opentelemetry-custom-collector/logprocessor/volumebasedlogsampler
+module volumebasedlogsampler
 
 go 1.23.1
 
