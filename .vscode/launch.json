@@ -6,8 +6,8 @@
         "type": "go",
         "request": "launch",
         "mode": "debug",
-        "program": "${workspaceFolder}/dec-5-reboot/affirm-otelcol",
-        "args": ["--config", "/workspaces/access_log_sampling/dec-5-reboot/volumebasedlogsampler/config.yaml"],
+        "program": "${workspaceFolder}/affirm-otelcol",
+        "args": ["--config", "/workspaces/access_log_sampling/volumebasedlogsampler/config.yaml"],
         "envFile": "${workspaceFolder}/.env"
       }
     ]
