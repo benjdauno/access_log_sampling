@@ -9,25 +9,19 @@ This repo is Affirm's codebase for custom otelcol components.
 
 ## Context
 
-There's a lot of baggage required to work with this area of technology. First, familiarity with the [OpenTelemetry](https://opentelemetry.io/docs/) project is a must. Reading up on the project in general, and more specifically, the [collector](https://opentelemetry.io/docs/collector/), will help users and contributors understand this codebase.
+There's a lot of baggage required to work with this area of technology. Familiarity with the [OpenTelemetry](https://opentelemetry.io/docs/) project is a must. Reading up on the project in general, and more specifically, the [collector](https://opentelemetry.io/docs/collector/), will help users and contributors understand this codebase.
 
-Next, this repository is specifically based on the OTEL documentation to build [custom collectors](https://opentelemetry.io/docs/collector/custom-collector/) and [components](https://opentelemetry.io/docs/collector/building/). While the tutorial goes through building a trace receiver, most of the principles apply to any custom component, and going through the tutorial is the best way to acquire familiarity with the concepts used in this codebase.
+Next, this repository is specifically based on the OTEL documentation to build [custom collectors](https://opentelemetry.io/docs/collector/custom-collector/) and [components](https://opentelemetry.io/docs/collector/building/). While the tutorial goes through building a trace receiver, most of the principles apply to any custom component (receiver, processor, or exporter), and going through the tutorial is the best way to acquire familiarity with the concepts used in this codebase. Connectors are another class of custom component not currently in scope.
 
-## Laptop Setup / Prerequisites
+## Custom Components
 
-- DevContainers extension (VSCode preferred)
-- Docker & Docker Compose
+### Volume based log sampler
 
-This project uses a devcontainer as a development environment as a means to provide a homogenous development experience to anyone working on the project. Contributors will need to build the development container before starting, and can then open it from the menu on the bottom left corner of VSCode.
+This component was specifically developed to sample a percentage of the Envoy access logs that Affirm uses to calculate service latencies (with p99 being the most relevant to our SLAs). Since we have so many data points coming in, we can sample only some of them, and still calculate p99 accurately. Endpoints with the highest volume will have the lowest sampling rates.
 
-The devcontainer installs:
+This component:
 
-- Golang version 1.23 
-- [The Opentelemetry Collector Builder](https://opentelemetry.io/docs/collector/custom-collector/) (ocb) version 0.115.0
-- dlv (Golang debugger)
-- Docker CLI (Note that the docker socket is actually shared with the host machine, but at the time or writing, this is fine.)
+1.  Gets a list of services and request volumes from a Prometheus data source
+2.  Sets a sampling rate for each service based on the volume of requests that it receives.
+3. Processes incoming access logs and applies a sampling rate based on the log attributes, or a default sampling rate. 
 
-
-### VolumeBasedLogSampler
-
-This sampler was originally developped to sample Envoy Access Logs at rates inversely proportional to their volume. That is endpoints and services that get the most traffic will have the lowest sampling rates.
