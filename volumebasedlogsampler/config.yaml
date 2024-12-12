@@ -4,6 +4,7 @@ receivers:
       grpc:
         endpoint: 0.0.0.0:4317
 processors:
+  batch:
   volumebasedlogsampler:
     sampling_rate: 0.5
 
@@ -15,5 +16,5 @@ service:
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [volumebasedlogsampler]
+      processors: [batch, volumebasedlogsampler]
       exporters: [debug]

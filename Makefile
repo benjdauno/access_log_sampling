@@ -29,7 +29,7 @@ binary:
 # Run telemetrygen to generate log traffic
 test:
 	@echo "Generating log traffic with telemetrygen..."
-	$(TELEMETRYGEN) logs --duration 10s --otlp-insecure
+	$(TELEMETRYGEN) logs --duration 10s --workers 4 --otlp-insecure
 
 # Build the Docker image
 image:
