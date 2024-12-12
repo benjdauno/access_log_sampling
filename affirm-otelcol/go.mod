@@ -2,7 +2,7 @@
 
 module go.opentelemetry.io/collector/cmd/affirm-otelcol
 
-go 1.22.0
+go 1.23.1
 
 toolchain go1.23.4
 
@@ -25,6 +25,7 @@ require (
 	go.opentelemetry.io/collector/receiver v0.115.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.115.0
 	golang.org/x/sys v0.27.0
+	volumebasedlogsampler v0.0.1
 )
 
 require (
@@ -149,3 +150,5 @@ require (
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace volumebasedlogsampler v0.0.1 => /workspaces/access_log_sampling/volumebasedlogsampler

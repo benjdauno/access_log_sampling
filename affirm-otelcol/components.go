@@ -13,9 +13,8 @@ import (
 	debugexporter "go.opentelemetry.io/collector/exporter/debugexporter"
 	otlpexporter "go.opentelemetry.io/collector/exporter/otlpexporter"
 	batchprocessor "go.opentelemetry.io/collector/processor/batchprocessor"
-	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
 	volumebasedlogsampler "volumebasedlogsampler"
-
+	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
 )
 
 func components() (otelcol.Factories, error) {
@@ -58,6 +57,7 @@ func components() (otelcol.Factories, error) {
 	}
 	factories.ProcessorModules = make(map[component.Type]string, len(factories.Processors))
 	factories.ProcessorModules[batchprocessor.NewFactory().Type()] = "go.opentelemetry.io/collector/processor/batchprocessor v0.115.0"
+	factories.ProcessorModules[volumebasedlogsampler.NewFactory().Type()] = "volumebasedlogsampler v0.0.1"
 
 	factories.Connectors, err = connector.MakeFactoryMap(
 	)

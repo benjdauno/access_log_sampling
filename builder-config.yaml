@@ -15,8 +15,8 @@ exporters:
 processors:
   - gomod:
       go.opentelemetry.io/collector/processor/batchprocessor v0.115.0
-  #- gomod:
-  #    github.com/benjdauno/volumebasedlogsampler v0.1.0
+  - gomod: volumebasedlogsampler v0.0.1
+    path: "./volumebasedlogsampler"
 
 receivers:
   - gomod:
