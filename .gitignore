@@ -3,5 +3,6 @@ envoy_logs/
 nginx_logs/
 otel_logs/
 
+bin/
 endpoint_categorizer_results/
 .env

@@ -8,7 +8,7 @@ ARG USER_GID=10001
 USER ${USER_UID}:${USER_GID}
 
 COPY --from=prep /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY affirm-otelcol/affirm-otelcol /
+COPY bin/affirm-otelcol /
 EXPOSE 4317 55680 55679
 ENTRYPOINT ["/affirm-otelcol"]
 CMD ["--config", "/etc/otel/config.yaml"]

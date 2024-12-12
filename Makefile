@@ -18,12 +18,13 @@ all: collector binary image
 # Build the OpenTelemetry Collector components using ocb
 collector:
 	@echo "Building OpenTelemetry Collector components..."
-	$(OCB) --config /workspaces/access_log_sampling/builder-config.yaml --output-path=$(BUILD_DIR)
+	$(OCB) --config /workspaces/access_log_sampling/builder-config.yaml --output-path=$(BUILD_DIR) &&\
+	mkdir -p bin && mv ${BUILD_DIR}/${COLLECTOR_NAME} bin/
 
 # Build the binary using Go
 binary:
 	@echo "Building the binary..."
-	cd $(BUILD_DIR) && $(GO) build -o $(COLLECTOR_NAME)
+	cd $(BUILD_DIR) && $(GO) build -o ../bin
 
 # Run telemetrygen to generate log traffic
 test:
@@ -38,4 +39,4 @@ image:
 # Clean up build artifacts
 clean:
 	@echo "Cleaning up build artifacts..."
-	rm -rf $(BUILD_DIR)/$(COLLECTOR_NAME)
+	rm -rf $(BUILD_DIR)/$(COLLECTOR_NAME) bin
