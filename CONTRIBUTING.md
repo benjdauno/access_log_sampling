@@ -1,8 +1,10 @@
 ## Laptop Setup / Prerequisites
 
 - DevContainers extension (VSCode preferred)
-- Docker & Docker Compose\
+- Docker & Docker Compose
 - Prometheus (Chronosphere) API Token
+
+This project assumes that you have gone through the Affirm laptop setup and that you have cloned the repo directly into your workspace folder. If this is not the case, please update the mounts in the devcontainer.json and docker-compose.yml files to suit your local paths.
 
 This project uses a devcontainer as a development environment as a means to provide a homogenous development experience to anyone working on the project. Contributors will need to build the development container before starting, and can then open it from the menu on the bottom left corner of VSCode.
 
@@ -36,4 +38,3 @@ Subsequent sessions will be quicker.
 1. Build the binary with `make binary`
 2. `export PROMETHEUS_API_TOKEN=XXXXXXXXXXXXX`
 3. `./affirm-otelcol/affirm-otelcol --config volumebasedlogsampler/config.yaml`
-

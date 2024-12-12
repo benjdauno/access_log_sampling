@@ -1,26 +1,32 @@
 {
-    "name": "OpenTelemetry Collector Dev",
-    
-    "build": {
-      
-      "dockerfile": "Dockerfile"
-    },
-    "features": {
-      "ghcr.io/devcontainers/features/docker-from-docker:1": {}
-    },
-    "remoteUser": "root",
-    "customizations": {
-      "vscode": {
-        "settings": {"terminal.integrated.defaultProfile.linux": "bash"},
-        "extensions": [
-          "golang.go",
-          "ms-azuretools.vscode-docker",
-          "redhat.vscode-yaml",
-          "ms-kubernetes-tools.vscode-kubernetes-tools"
-        ]
-      }
-    },
-    "forwardPorts": [8888, 9901],
-    "postCreateCommand": "ocb --help"
-  }
-  
+  "name": "OpenTelemetry Collector Dev",
+  "mounts": [
+    "source=${localEnv:HOME}/workspace/access_log_sampling/dev_tooling,target=/dev_tooling,type=bind,consistency=cached"
+  ],
+  "containerEnv": {"USER_HOME":"${localEnv:HOME}"},
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-from-docker:1": {}
+  },
+  "remoteUser": "root",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "golang.go",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "ms-kubernetes-tools.vscode-kubernetes-tools"
+      ]
+    }
+  },
+  "forwardPorts": [
+    8888,
+    9901
+  ],
+  "postCreateCommand": "ocb --help"
+}
