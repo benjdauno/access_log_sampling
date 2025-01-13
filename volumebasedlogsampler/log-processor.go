@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
+	"strings"
 
 	"net/http"
 	"os"
@@ -68,33 +70,102 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Start(ctx context.Context, ho
 //}
 
 func (volBLogProc *volumeBasedLogSamplerProcessor) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
-	// Log the processing of logs
+	sampledLD := plog.NewLogs()
+
 	volBLogProc.logger.Info("Processing logs batch",
 		zap.Int("resourceLogsCount", ld.ResourceLogs().Len()))
 
-	// Iterate through each ResourceLogs item to log details of the logs processed
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		resourceLogs := ld.ResourceLogs().At(i)
+		newResourceLogs := sampledLD.ResourceLogs().AppendEmpty()
+		resourceLogs.Resource().CopyTo(newResourceLogs.Resource())
+
 		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
+			newScopeLogs := newResourceLogs.ScopeLogs().AppendEmpty()
+			scopeLogs.Scope().CopyTo(newScopeLogs.Scope())
+
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
-				endpointValue, exists := logRecord.Attributes().Get("endpoint")
-				if !exists {
-					volBLogProc.logger.Warn("Endpoint attribute missing in log record")
+
+				endpointType, err := volBLogProc.determineEndpointType(logRecord)
+				if err != nil {
+					volBLogProc.logger.Warn("Failed to determine endpoint type", zap.Error(err))
 					continue
 				}
 
-				volBLogProc.logger.Info("Processing log record",
-					zap.String("endpoint", endpointValue.Str()),
-					zap.Time("timestamp", logRecord.Timestamp().AsTime()),
-				)
+				endpoint, err := volBLogProc.extractEndpoint(logRecord, endpointType)
+				if err != nil {
+					volBLogProc.logger.Warn("Failed to extract endpoint", zap.Error(err))
+					continue
+				}
+
+				if volBLogProc.shouldSample(endpoint) {
+					newLogRecord := newScopeLogs.LogRecords().AppendEmpty()
+					logRecord.CopyTo(newLogRecord)
+					volBLogProc.logger.Debug("Log record sampled",
+						zap.String("endpoint", endpoint),
+						zap.String("endpoint_type", endpointType),
+						zap.Time("timestamp", logRecord.Timestamp().AsTime()))
+				} else {
+					volBLogProc.logger.Debug("Log record dropped due to sampling",
+						zap.String("endpoint", endpoint),
+						zap.String("endpoint_type", endpointType))
+				}
 			}
 		}
 	}
 
-	// Forward all logs to the next consumer
-	return volBLogProc.nextConsumer.ConsumeLogs(ctx, ld)
+	return volBLogProc.nextConsumer.ConsumeLogs(ctx, sampledLD)
+}
+
+func (volBLogProc *volumeBasedLogSamplerProcessor) determineEndpointType(logRecord plog.LogRecord) (string, error) {
+	contentTypeVal, exists := logRecord.Attributes().Get("content_type")
+	if !exists {
+		return "", fmt.Errorf("content_type attribute missing")
+	}
+	contentType := contentTypeVal.Str()
+
+	switch {
+	case strings.HasPrefix(contentType, "application/rpc2"):
+		return "rpc2", nil
+	case strings.HasPrefix(contentType, "application/grpc"):
+		return "grpc", nil
+	default:
+		return "http", nil
+	}
+}
+
+func (volBLogProc *volumeBasedLogSamplerProcessor) extractEndpoint(logRecord plog.LogRecord, endpointType string) (string, error) {
+	switch endpointType {
+	case "rpc2", "grpc":
+		pathVal, exists := logRecord.Attributes().Get("path")
+		if !exists || pathVal.Str() == "" {
+			return "", fmt.Errorf("path attribute missing or empty for RPC2/GRPC endpoint")
+		}
+		pathSegments := strings.Split(strings.TrimPrefix(pathVal.Str(), "/"), "/")
+		if len(pathSegments) < 2 {
+			return "", fmt.Errorf("unable to parse endpoint from path")
+		}
+		// Reconstruct /service/method format
+		return "/" + pathSegments[0] + "/" + pathSegments[1], nil
+	case "http":
+		endpointNameVal, exists := logRecord.Attributes().Get("x_affirm_endpoint_name")
+		if !exists || endpointNameVal.Str() == "" || endpointNameVal.Str() == "-" {
+			return "", fmt.Errorf("x_affirm_endpoint_name attribute missing or invalid for HTTP endpoint")
+		}
+		return endpointNameVal.Str(), nil
+	default:
+		return "", fmt.Errorf("unknown endpoint type: %s", endpointType)
+	}
+}
+
+func (volBLogProc *volumeBasedLogSamplerProcessor) shouldSample(endpoint string) bool {
+	rate, exists := volBLogProc.samplingRates[endpoint]
+	if !exists {
+		rate = 1.0 // default to keep if no rate is set
+	}
+	return rand.Float32() <= rate
 }
 
 // Shutdown gracefully shuts down the processor.
@@ -219,7 +290,7 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) buildSamplingRateTable(data [
 
 // executePrometheusQuery sends a Prometheus query and parses the response.
 func executePrometheusQuery(apiURL, query, token string) ([]map[string]interface{}, error) {
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 90 * time.Second}
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
