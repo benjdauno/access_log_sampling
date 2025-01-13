@@ -24,7 +24,8 @@ RUN curl --proto '=https' --tlsv1.2 -fL -o /tmp/ocb \
     chmod +x /tmp/ocb && \
     mv /tmp/ocb /usr/local/bin/ocb &&\
     go install github.com/go-delve/delve/cmd/dlv@latest &&\
-    go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@v0.115.0
+    go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@v0.115.0 &&\
+    go install golang.org/x/tools/cmd/goimports@latest
 
 
 
