@@ -7,6 +7,8 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
+  "runArgs": ["--network=host"],
+
   "features": {
     "ghcr.io/devcontainers/features/docker-from-docker:1": {}
   },
@@ -24,9 +26,8 @@
       ]
     }
   },
+  
   "forwardPorts": [
-    8888,
-    9901
   ],
   "postCreateCommand": "ocb --help"
 }
