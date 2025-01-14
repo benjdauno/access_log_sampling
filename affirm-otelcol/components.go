@@ -13,6 +13,8 @@ import (
 	debugexporter "go.opentelemetry.io/collector/exporter/debugexporter"
 	otlpexporter "go.opentelemetry.io/collector/exporter/otlpexporter"
 	kafkaexporter "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
+	filterprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
+	transformprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	batchprocessor "go.opentelemetry.io/collector/processor/batchprocessor"
 	volumebasedlogsampler "volumebasedlogsampler"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
@@ -52,6 +54,8 @@ func components() (otelcol.Factories, error) {
 	factories.ExporterModules[kafkaexporter.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.115.0"
 
 	factories.Processors, err = processor.MakeFactoryMap(
+		filterprocessor.NewFactory(),
+		transformprocessor.NewFactory(),
 		batchprocessor.NewFactory(),
 		volumebasedlogsampler.NewFactory(),
 	)
@@ -59,6 +63,8 @@ func components() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 	factories.ProcessorModules = make(map[component.Type]string, len(factories.Processors))
+	factories.ProcessorModules[filterprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.115.0"
+	factories.ProcessorModules[transformprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.115.0"
 	factories.ProcessorModules[batchprocessor.NewFactory().Type()] = "go.opentelemetry.io/collector/processor/batchprocessor v0.115.0"
 	factories.ProcessorModules[volumebasedlogsampler.NewFactory().Type()] = "volumebasedlogsampler v0.0.1"
 
