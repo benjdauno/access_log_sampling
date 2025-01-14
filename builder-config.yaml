@@ -16,6 +16,10 @@ exporters:
 
 processors:
   - gomod:
+      github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.115.0
+  - gomod:
+      github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.115.0
+  - gomod:
       go.opentelemetry.io/collector/processor/batchprocessor v0.115.0
   - gomod: volumebasedlogsampler v0.0.1
     path: "./volumebasedlogsampler"
