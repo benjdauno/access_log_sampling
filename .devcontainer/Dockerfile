@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     lsb-release \
+    kafkacat \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the Docker CLI
