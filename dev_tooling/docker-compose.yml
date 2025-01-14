@@ -56,8 +56,15 @@ services:
   otel-collector:
     image: affirm-otelcol:0.0.7
     container_name: otel-collector
+    deploy:
+      resources:
+        limits:
+          cpus: 0.1
+          memory: 512M
+
     ports:
       - "4317:4317"    # gRPC receiver for OTLP
+      - "8888:8888"
       - "55680:55680"  # OpenTelemetry receiver for traces
     volumes:
       - ${USER_HOME}/workspace/access_log_sampling/dev_tooling/otel-config.yaml:/etc/otel-config.yaml:cached
