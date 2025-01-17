@@ -12,6 +12,19 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  apache:
+    image: httpd:latest
+    container_name: apache
+    ports:
+      - "8082:80"
+    volumes:
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/apache_logs:/usr/local/apache2/logs:tmpfs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   envoy:
     image: envoyproxy/envoy:v1.32.1
     container_name: envoy
@@ -54,7 +67,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   otel-collector:
-    image: affirm-otelcol:0.0.9
+    image: affirm-otelcol:0.0.10
     container_name: otel-collector
     deploy:
       resources:
@@ -68,6 +81,7 @@ services:
       - "55680:55680"  # OpenTelemetry receiver for traces
     volumes:
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel-config.yaml:/etc/otel-config.yaml:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/exclusions.txt:/etc/exclusions.txt:cached
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel_logs:/var/log/otel-logs:tmpfs
     command: ["--config", "/etc/otel-config.yaml"]
     env_file:

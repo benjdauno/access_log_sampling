@@ -52,7 +52,7 @@ static_resources:
                               string_value: "http"
                           - key: x_affirm_endpoint_name
                             value:
-                              string_value: "dummy-header"
+                              string_value: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
                           
                           
                           
