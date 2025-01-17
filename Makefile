@@ -1,6 +1,6 @@
 # Variables
 COLLECTOR_NAME := affirm-otelcol
-DOCKER_IMAGE := affirm-otelcol:0.0.7
+DOCKER_IMAGE := affirm-otelcol:0.0.9
 DOCKERFILE := Dockerfile
 BUILD_DIR := ./affirm-otelcol
 
@@ -45,6 +45,10 @@ read-kafka:
 read-kafka-current:
 	@echo "Reading messages from Kafka topic from the current offset..."
 	kafkacat -b localhost:29092 -t otel-logs -C
+
+.PHONY: load-test
+test-envoy:
+	while true; do curl -s http://localhost:8080/nginx/ > /dev/null; done
 
 # Clean up build artifacts
 clean:

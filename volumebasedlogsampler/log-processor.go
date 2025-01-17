@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // volumeBasedLogSamplerProcessor is a custom processor that fetches endpoint volumes from Prometheus.
@@ -44,7 +45,8 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Start(ctx context.Context, ho
 	volBLogProc.host = host
 	ctx = context.Background()
 	ctx, volBLogProc.cancel = context.WithCancel(ctx)
-
+	// Set the log level from the environment variable
+	volBLogProc.setLogLevel()
 	// Initialize the map to store sampling rates
 	volBLogProc.samplingRates = make(map[string]float32)
 	volBLogProc.environment = "dev"
@@ -284,7 +286,7 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) buildSamplingRateTable(data [
 		// Store the sampling rate using the label value as the key
 		newRates[labelValue] = calculateSamplingRate(totalVolume)
 	}
-
+	newRates["dummy-header"] = 0.5
 	return newRates
 }
 
@@ -367,4 +369,30 @@ func calculateSamplingRate(volume int64) float32 {
 	default:
 		return 1.0
 	}
+}
+
+// setLogLevel sets the log level based on the environment variable LOG_LEVEL.
+func (volBLogProc *volumeBasedLogSamplerProcessor) setLogLevel() {
+	logLevel := os.Getenv("LOG_LEVEL")
+	var level zapcore.Level
+	switch logLevel {
+	case "debug":
+		level = zapcore.DebugLevel
+	case "info":
+		level = zapcore.InfoLevel
+	case "warn":
+		level = zapcore.WarnLevel
+	case "error":
+		level = zapcore.ErrorLevel
+	default:
+		level = zapcore.InfoLevel
+	}
+
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(level)
+	logger, err := config.Build()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create logger: %v", err))
+	}
+	volBLogProc.logger = logger
 }

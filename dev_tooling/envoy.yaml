@@ -49,7 +49,7 @@ static_resources:
                         values:
                           - key: content_type
                             value: 
-                              string_value: "application/json"
+                              string_value: "http"
                           - key: x_affirm_endpoint_name
                             value:
                               string_value: "dummy-header"

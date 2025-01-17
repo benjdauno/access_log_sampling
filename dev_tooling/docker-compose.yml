@@ -54,7 +54,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   otel-collector:
-    image: affirm-otelcol:0.0.7
+    image: affirm-otelcol:0.0.9
     container_name: otel-collector
     deploy:
       resources:
