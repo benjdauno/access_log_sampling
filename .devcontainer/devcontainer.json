@@ -3,7 +3,7 @@
   "mounts": [
     "source=${localEnv:HOME}/workspace/access_log_sampling/dev_tooling,target=/dev_tooling,type=bind,consistency=cached"
   ],
-  "containerEnv": {"USER_HOME":"${localEnv:HOME}"},
+  "remoteEnv": {"MOUNT_HOME":"${localEnv:HOME}"},
   "build": {
     "dockerfile": "Dockerfile"
   },

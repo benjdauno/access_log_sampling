@@ -5,7 +5,7 @@ services:
     ports:
       - "8081:80"
     volumes:
-      - ${USER_HOME}/workspace/access_log_sampling/dev_tooling/nginx_logs:/var/log/nginx:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/nginx_logs:/var/log/nginx:tmpfs
     logging:
       driver: "json-file"
       options:
@@ -16,8 +16,8 @@ services:
     image: envoyproxy/envoy:v1.32.1
     container_name: envoy
     volumes:
-      - ${USER_HOME}/workspace/access_log_sampling/dev_tooling/envoy.yaml:/etc/envoy/envoy.yaml:cached
-      - ${USER_HOME}/workspace/access_log_sampling/dev_tooling/envoy_logs:/var/log/envoy:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/envoy.yaml:/etc/envoy/envoy.yaml
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/envoy_logs:/var/log/envoy:tmpfs
     ports:
       - "8080:8080"
       - "9901:9901"  # Envoy Admin interface
@@ -67,8 +67,8 @@ services:
       - "8888:8888"
       - "55680:55680"  # OpenTelemetry receiver for traces
     volumes:
-      - ${USER_HOME}/workspace/access_log_sampling/dev_tooling/otel-config.yaml:/etc/otel-config.yaml:cached
-      - ${USER_HOME}/workspace/access_log_sampling/dev_tooling/otel_logs:/var/log/otel-logs:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel-config.yaml:/etc/otel-config.yaml:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel_logs:/var/log/otel-logs:tmpfs
     command: ["--config", "/etc/otel-config.yaml"]
     env_file:
       - ../.env
