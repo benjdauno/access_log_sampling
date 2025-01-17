@@ -1,6 +1,6 @@
 # Variables
 COLLECTOR_NAME := affirm-otelcol
-DOCKER_IMAGE := affirm-otelcol:0.0.9
+DOCKER_IMAGE := affirm-otelcol:0.0.10
 DOCKERFILE := Dockerfile
 BUILD_DIR := ./affirm-otelcol
 
@@ -31,6 +31,10 @@ image:
 	@echo "Building the Docker image..."
 	$(DOCKER) build -t $(DOCKER_IMAGE) -f $(DOCKERFILE) .
 
+run:
+	@echo "Running binary..."
+	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/otel-config.yaml
+
 # Run telemetrygen to generate log traffic
 test:
 	@echo "Generating log traffic with telemetrygen..."
@@ -48,7 +52,7 @@ read-kafka-current:
 
 .PHONY: load-test
 test-envoy:
-	while true; do curl -s http://localhost:8080/nginx/ > /dev/null; done
+	while true; do curl -s http://localhost:8080/nginx > /dev/null ; done
 
 # Clean up build artifacts
 clean:
