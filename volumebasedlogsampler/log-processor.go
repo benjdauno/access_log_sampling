@@ -2,21 +2,18 @@ package volumebasedlogsampler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"strings"
 
-	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // volumeBasedLogSamplerProcessor is a custom processor that fetches endpoint volumes from Prometheus.
@@ -44,7 +41,8 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Start(ctx context.Context, ho
 	volBLogProc.host = host
 	ctx = context.Background()
 	ctx, volBLogProc.cancel = context.WithCancel(ctx)
-
+	// Set the log level from the environment variable
+	volBLogProc.setLogLevel()
 	// Initialize the map to store sampling rates
 	volBLogProc.samplingRates = make(map[string]float32)
 	volBLogProc.environment = "dev"
@@ -176,195 +174,28 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) Shutdown(ctx context.Context)
 	return nil
 }
 
-// refreshSamplingRates periodically fetches and updates sampling rates based on the environment.
-func (volBLogProc *volumeBasedLogSamplerProcessor) refreshSamplingRates(ctx context.Context, token string) {
-	ticker := time.NewTicker(volBLogProc.getQueryInterval())
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			volBLogProc.logger.Info("Running queries to refresh sampling rates")
-			if err := volBLogProc.getSamplingRates(token); err != nil {
-				volBLogProc.logger.Error("Failed to run scheduled queries", zap.Error(err))
-			}
-		}
-	}
-}
-
-// getQueryInterval calculates the query interval based on the environment.
-func (volBLogProc *volumeBasedLogSamplerProcessor) getQueryInterval() time.Duration {
-	switch volBLogProc.environment {
-	case "dev":
-		return volBLogProc.queryInterval // Short interval for debugging in development.
-	case "stage", "prod":
-		now := time.Now()
-		nextMonth := now.AddDate(0, 1, 0)
-		firstDayNextMonth := time.Date(nextMonth.Year(), nextMonth.Month(), 1, 0, 0, 0, 0, time.UTC)
-		return time.Until(firstDayNextMonth) // Schedule monthly.
+// setLogLevel sets the log level based on the environment variable LOG_LEVEL.
+func (volBLogProc *volumeBasedLogSamplerProcessor) setLogLevel() {
+	logLevel := os.Getenv("LOG_LEVEL")
+	var level zapcore.Level
+	switch logLevel {
+	case "debug":
+		level = zapcore.DebugLevel
+	case "info":
+		level = zapcore.InfoLevel
+	case "warn":
+		level = zapcore.WarnLevel
+	case "error":
+		level = zapcore.ErrorLevel
 	default:
-		return time.Hour * 24 // Default to daily queries if environment is unknown.
+		level = zapcore.InfoLevel
 	}
-}
 
-// getSamplingRates fetches Prometheus data and updates the sampling rates atomically.
-func (volBLogProc *volumeBasedLogSamplerProcessor) getSamplingRates(token string) error {
-	// Fetch data from Prometheus.
-	rawData, err := volBLogProc.fetchPrometheusData(token)
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(level)
+	logger, err := config.Build()
 	if err != nil {
-		return err
+		panic(fmt.Sprintf("Failed to create logger: %v", err))
 	}
-
-	// Build new sampling rate table.
-	newSamplingRates := volBLogProc.buildSamplingRateTable(rawData)
-
-	// Atomically update the map.
-	volBLogProc.samplingRates = newSamplingRates
-
-	return nil
-}
-
-// fetchPrometheusData executes Prometheus queries and returns raw data.
-func (volBLogProc *volumeBasedLogSamplerProcessor) fetchPrometheusData(token string) ([]map[string]interface{}, error) {
-	queries := []struct {
-		baseQuery   string
-		metricLabel string
-	}{
-		{
-			baseQuery:   `sum(sum_over_time(http_server_handled_total{environment="prod",mode="live",path!~"/ping|/healthz|/_healthz"}[%s])) by (path)`,
-			metricLabel: "path",
-		},
-		{
-			baseQuery:   `sum(sum_over_time(rpc2_server_handled_total{environment="prod",mode="live"}[%s])) by (rpc2_method)`,
-			metricLabel: "rpc2_method",
-		},
-	}
-
-	offset := calculatePreviousMonthOffset()
-	var results []map[string]interface{}
-
-	for _, q := range queries {
-		query := fmt.Sprintf(q.baseQuery, offset)
-		apiURL := "https://affirm.chronosphere.io/data/metrics/api/v1/query"
-
-		resp, err := executePrometheusQuery(apiURL, query, token)
-		if err != nil {
-			volBLogProc.logger.Error("Failed to query Prometheus", zap.String("query", query), zap.Error(err))
-			return nil, err
-		}
-		results = append(results, resp...)
-	}
-
-	return results, nil
-}
-
-// buildSamplingRateTable builds a new sampling rates map from Prometheus data.
-func (volBLogProc *volumeBasedLogSamplerProcessor) buildSamplingRateTable(data []map[string]interface{}) map[string]float32 {
-	newRates := make(map[string]float32)
-
-	for _, item := range data {
-		// Extract the label map
-		metric := item["metric"].(map[string]interface{})
-
-		// Extract the label key and value (assumes there's only one key-value pair in the map)
-		var labelValue string
-
-		for _, value := range metric {
-
-			labelValue = value.(string)
-			break // Only one label key is expected
-		}
-
-		// Extract volume
-		volumeStr := item["value"].([]interface{})[1].(string)
-		totalVolume, _ := strconv.ParseInt(volumeStr, 10, 64)
-
-		// Store the sampling rate using the label value as the key
-		newRates[labelValue] = calculateSamplingRate(totalVolume)
-	}
-
-	return newRates
-}
-
-// executePrometheusQuery sends a Prometheus query and parses the response.
-func executePrometheusQuery(apiURL, query, token string) ([]map[string]interface{}, error) {
-	client := &http.Client{Timeout: 90 * time.Second}
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-
-	// Add query parameters
-	q := req.URL.Query()
-	q.Add("query", query)
-	req.URL.RawQuery = q.Encode()
-
-	// Set headers
-	req.Header.Add("Authorization", "Bearer "+token)
-	req.Header.Add("Accept", "application/json")
-
-	// Execute the HTTP request
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to get data: %s", bodyBytes)
-	}
-
-	// Parse the response body
-	var parsedResponse struct {
-		Status string `json:"status"`
-		Data   struct {
-			ResultType string                   `json:"resultType"`
-			Result     []map[string]interface{} `json:"result"`
-		} `json:"data"`
-	}
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if err := json.Unmarshal(bodyBytes, &parsedResponse); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
-	}
-
-	// Check the status field
-	if parsedResponse.Status != "success" {
-		return nil, fmt.Errorf("Prometheus query failed with status: %s", parsedResponse.Status)
-	}
-
-	return parsedResponse.Data.Result, nil
-}
-
-// calculatePreviousMonthOffset calculates the Prometheus offset for the previous month.
-func calculatePreviousMonthOffset() string {
-	now := time.Now()
-	firstDayOfCurrentMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	firstDayOfPreviousMonth := firstDayOfCurrentMonth.AddDate(0, -1, 0)
-	duration := time.Since(firstDayOfPreviousMonth)
-	return fmt.Sprintf("%dh", int(duration.Hours()))
-}
-
-// calculateSamplingRate calculates the sampling rate based on monthly volume.
-func calculateSamplingRate(volume int64) float32 {
-	switch {
-	case volume > 10_000_000:
-		return 0.01
-	case volume > 1_000_000:
-		return 0.02
-	case volume > 500_000:
-		return 0.05
-	case volume > 200_000:
-		return 0.1
-	case volume > 50_000:
-		return 0.2
-	default:
-		return 1.0
-	}
+	volBLogProc.logger = logger
 }
