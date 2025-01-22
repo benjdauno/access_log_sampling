@@ -34,7 +34,7 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) getSamplingRates(token string
 
 // getQueryInterval calculates the query interval based on the environment.
 func (volBLogProc *volumeBasedLogSamplerProcessor) getQueryInterval() time.Duration {
-	switch volBLogProc.environment {
+	switch volBLogProc.config.Environment {
 	case "dev":
 		return volBLogProc.queryInterval // Short interval for debugging in development.
 	case "stage", "prod":
@@ -86,7 +86,8 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) fetchPrometheusData(token str
 
 	for _, q := range queries {
 		query := fmt.Sprintf(q.baseQuery, offset)
-		apiURL := "https://affirm.chronosphere.io/data/metrics/api/v1/query"
+		// build the URL from the prometheus URL
+		apiURL := fmt.Sprintf("%s/api/v1/query", volBLogProc.config.PrometheusURL)
 
 		resp, err := executePrometheusQuery(apiURL, query, token)
 		if err != nil {
@@ -104,7 +105,7 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) buildSamplingRateTable(data [
 	newRates := make(map[string]float32)
 
 	// Read exclusions from the config file
-	exclusions, err := readExclusions("/etc/exclusions.txt")
+	exclusions, err := readExclusions(volBLogProc.config.ExcludedEndpointsConfigFile)
 	if errors.Is(err, os.ErrNotExist) {
 		volBLogProc.logger.Warn("Exclusions file not found, sampling will apply to all endpoints")
 	} else {
