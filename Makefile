@@ -1,6 +1,6 @@
 # Variables
 COLLECTOR_NAME := affirm-otelcol
-DOCKER_IMAGE := affirm-otelcol:0.0.10
+DOCKER_IMAGE := affirm-otelcol:0.0.11
 DOCKERFILE := Dockerfile
 BUILD_DIR := ./affirm-otelcol
 

@@ -7,7 +7,9 @@ receivers:
 processors:
   batch:
   volumebasedlogsampler:
-    sampling_rate: 0.5
+    sampling_rate: 1
+    log_level: debug
+    prometheus_url: https://affirm.chronosphere.io/data/metrics
 
 exporters:
   kafka:
@@ -23,4 +25,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch, volumebasedlogsampler]
-      exporters: [kafka, debug]
+      exporters: [debug]

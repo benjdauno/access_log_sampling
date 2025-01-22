@@ -101,7 +101,7 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) ConsumeLogs(ctx context.Conte
 				if volBLogProc.shouldSample(endpoint) {
 					newLogRecord := newScopeLogs.LogRecords().AppendEmpty()
 					logRecord.CopyTo(newLogRecord)
-					volBLogProc.logger.Debug("Log record sampled",
+					volBLogProc.logger.Debug("Log record retained",
 						zap.String("endpoint", endpoint),
 						zap.String("endpoint_type", endpointType),
 						zap.Time("timestamp", logRecord.Timestamp().AsTime()))
