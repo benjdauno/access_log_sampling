@@ -52,7 +52,9 @@ read-kafka-current:
 
 .PHONY: load-test
 test-envoy:
-	while true; do curl -s http://localhost:8080/nginx > /dev/null ; done
+# change this to use siege to test the envoy proxy
+	@echo "Running load test..."
+	siege -c 10 -t 30s -v -f /workspaces/access_log_sampling/dev_tooling/urls.txt 
 
 # Clean up build artifacts
 clean:
