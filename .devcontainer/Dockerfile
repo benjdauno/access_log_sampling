@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     lsb-release \
     kafkacat \
+    siege \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the Docker CLI
@@ -21,13 +22,14 @@ RUN curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-
 
 # Install the OpenTelemetry Collector Builder (ocb) & Go debugger
 RUN curl --proto '=https' --tlsv1.2 -fL -o /tmp/ocb \
-    https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.115.0/ocb_0.115.0_linux_amd64 && \
+    https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.118.0/ocb_0.118.0_linux_amd64 && \
     chmod +x /tmp/ocb && \
-    mv /tmp/ocb /usr/local/bin/ocb &&\
-    go install github.com/go-delve/delve/cmd/dlv@latest &&\
-    go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@v0.115.0 &&\
-    go install golang.org/x/tools/cmd/goimports@latest \
-    go install -v golang.org/x/tools/gopls@latest
+    mv /tmp/ocb /usr/local/bin/ocb
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest &&\
+    go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest &&\
+    go install golang.org/x/tools/cmd/goimports@latest &&\
+    go install golang.org/x/tools/gopls@latest
 
 
 

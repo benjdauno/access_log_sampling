@@ -137,14 +137,12 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) buildSamplingRateTable(data [
 	for key := range exclusions {
 		newRates[key] = 1.0
 	}
-	// for testing purposes
-	newRates["/nginx"] = 0.5
 	return newRates
 }
 
 // executePrometheusQuery sends a Prometheus query and parses the response.
 func executePrometheusQuery(apiURL, query, token string) ([]map[string]interface{}, error) {
-	client := &http.Client{Timeout: 90 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second}
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)

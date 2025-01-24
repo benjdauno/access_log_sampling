@@ -1,2 +1,6 @@
-http://localhost:8080/nginx
-http://localhost:8080/apache
+http://localhost:8080/amplify/digital_wallet_service/should_allow_add_to_wallet
+http://localhost:8080/amplify/v1/crm/users/<user_ari>/fraud_unsuspend
+http://localhost:8080/amplify/v1/activities/
+http://localhost:8080/alm/internal/v1/scenarios/update
+http://localhost:8080/no/match
+http://localhost:8080/fuzz/test

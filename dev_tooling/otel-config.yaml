@@ -25,4 +25,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch, volumebasedlogsampler]
-      exporters: [debug]
+      exporters: [debug, kafka]
