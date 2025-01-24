@@ -17,13 +17,29 @@ static_resources:
                     - name: backend
                       domains: ["*"]
                       routes:
-                        - match: { prefix: "/nginx" }
+                        # 5,597,308,284 requests/month
+                        - match: { prefix: "/amplify/digital_wallet_service/should_allow_add_to_wallet" }
                           route:
                             cluster: nginx_service
                             prefix_rewrite: "/"
-                        - match: { prefix: "/apache" }
+                        # 2,866,485 requests/month
+                        - match: { prefix: "/amplify/v1/crm/users/<user_ari>/fraud_unsuspend" }
                           route:
                             cluster: apache_service
+                            prefix_rewrite: "/"
+                        # 445,003 requests/month
+                        - match: { prefix: "/amplify/v1/activities/" }
+                          route:
+                            cluster: nginx_service
+                            prefix_rewrite: "/"
+                        # 2,521 requests/month
+                        - match: { prefix: "/alm/internal/v1/scenarios/update" }
+                          route:
+                            cluster: apache_service
+                            prefix_rewrite: "/"
+                        - match: { prefix: "/no/match" }
+                          route:
+                            cluster: nginx_service
                             prefix_rewrite: "/"
 
                 http_filters:
