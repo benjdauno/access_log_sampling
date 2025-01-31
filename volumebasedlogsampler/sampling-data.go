@@ -71,12 +71,13 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) fetchPrometheusData(token str
 		baseQuery   string
 		metricLabel string
 	}{
+		
 		{
-			baseQuery:   `sum(sum_over_time(http_server_handled_total{environment="prod",mode="live",path!~"/ping|/healthz|/_healthz"}[%s])) by (path)`,
+			baseQuery:   `sum(sum_over_time(http_server_handled_total{environment="prod",mode="live",path!~"/ping|/healthz|/_healthz"}[%s])) by (path, cloud_region)`,
 			metricLabel: "path",
 		},
 		{
-			baseQuery:   `sum(sum_over_time(rpc2_server_handled_total{environment="prod",mode="live"}[%s])) by (rpc2_method)`,
+			baseQuery:   `sum(sum_over_time(rpc2_server_handled_total{environment="prod",mode="live"}[%s])) by (rpc2_method, cloud_region)`,
 			metricLabel: "rpc2_method",
 		},
 	}
@@ -142,7 +143,9 @@ func (volBLogProc *volumeBasedLogSamplerProcessor) buildSamplingRateTable(data [
 
 // executePrometheusQuery sends a Prometheus query and parses the response.
 func executePrometheusQuery(apiURL, query, token string) ([]map[string]interface{}, error) {
-	client := &http.Client{Timeout: 120 * time.Second}
+	// A long timeout is needed here because the query normally takes a long time to execute
+	// Likely due to the large amount of data being returned.
+	client := &http.Client{Timeout: 240 * time.Second}
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
