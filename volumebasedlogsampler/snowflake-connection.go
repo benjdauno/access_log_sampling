@@ -1,5 +1,6 @@
-package main
-
+package volumebasedlogsampler
+// Switch to package main to run this file independently and test snowflake
+//package main
 import (
 	"crypto/rsa"
 	"crypto/x509"
