@@ -7,26 +7,25 @@ dist:
 
 exporters:
   - gomod:
-      # NOTE: Prior to v0.86.0 use the `loggingexporter` instead of `debugexporter`.
-      go.opentelemetry.io/collector/exporter/debugexporter v0.115.0
+      go.opentelemetry.io/collector/exporter/debugexporter v0.119.0
   - gomod:
-      go.opentelemetry.io/collector/exporter/otlpexporter v0.115.0
+      go.opentelemetry.io/collector/exporter/otlpexporter v0.119.0
   - gomod:
-      github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.115.0
+      github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.119.0
 
 processors:
   - gomod:
-      github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.115.0
+      github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.119.0
   - gomod:
-      github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.115.0
+      github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.119.0
   - gomod:
-      go.opentelemetry.io/collector/processor/batchprocessor v0.115.0
+      go.opentelemetry.io/collector/processor/batchprocessor v0.119.0
   - gomod: volumebasedlogsampler v0.0.1
     path: "./volumebasedlogsampler"
 
 receivers:
   - gomod:
-      go.opentelemetry.io/collector/receiver/otlpreceiver v0.115.0
+      go.opentelemetry.io/collector/receiver/otlpreceiver v0.119.0
 
 providers:
   - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.18.0

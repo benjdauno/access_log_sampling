@@ -18,7 +18,7 @@ all: collector binary image
 # Build the OpenTelemetry Collector components using ocb
 collector:
 	@echo "Building OpenTelemetry Collector components..."
-	$(OCB) --config /workspaces/access_log_sampling/builder-config.yaml --output-path=$(BUILD_DIR) &&\
+	$(OCB) --config /workspaces/access_log_sampling/builder-config.yaml &&\
 	mkdir -p bin && mv ${BUILD_DIR}/${COLLECTOR_NAME} bin/
 
 # Build the binary using Go
