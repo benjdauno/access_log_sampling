@@ -1,0 +1,19 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+processors:
+  batch:
+  slometricsemitter:
+
+exporters:
+  # NOTE: Prior to v0.86.0 use `logging` instead of `debug`.
+  debug:
+    #verbosity: detailed
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch, slometricsemitter]
+      exporters: [debug]

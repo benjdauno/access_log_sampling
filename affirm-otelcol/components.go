@@ -17,6 +17,7 @@ import (
 	transformprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	batchprocessor "go.opentelemetry.io/collector/processor/batchprocessor"
 	volumebasedlogsampler "volumebasedlogsampler"
+	slometricsemitter "slometricsemitter"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
 )
 
@@ -58,6 +59,7 @@ func components() (otelcol.Factories, error) {
 		transformprocessor.NewFactory(),
 		batchprocessor.NewFactory(),
 		volumebasedlogsampler.NewFactory(),
+		slometricsemitter.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
@@ -67,6 +69,7 @@ func components() (otelcol.Factories, error) {
 	factories.ProcessorModules[transformprocessor.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.119.0"
 	factories.ProcessorModules[batchprocessor.NewFactory().Type()] = "go.opentelemetry.io/collector/processor/batchprocessor v0.119.0"
 	factories.ProcessorModules[volumebasedlogsampler.NewFactory().Type()] = "volumebasedlogsampler v0.0.1"
+	factories.ProcessorModules[slometricsemitter.NewFactory().Type()] = "slometricsemitter v0.0.1"
 
 	factories.Connectors, err = connector.MakeFactoryMap(
 	)

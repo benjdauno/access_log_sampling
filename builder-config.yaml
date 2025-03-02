@@ -22,6 +22,8 @@ processors:
       go.opentelemetry.io/collector/processor/batchprocessor v0.119.0
   - gomod: volumebasedlogsampler v0.0.1
     path: "./volumebasedlogsampler"
+  - gomod: slometricsemitter v0.0.1
+    path: "./slometricsemitter"
 
 receivers:
   - gomod:
