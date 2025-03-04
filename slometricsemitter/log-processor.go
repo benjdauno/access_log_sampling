@@ -67,7 +67,7 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 
 	// Initialize custom counters. Labels are added at increment time.
 	sloMetricsProc.latencyBreachCounter, err = meter.Int64Counter(
-		"aff_otel_slo_latency_breach",
+		"aff_otel_slo_latency_breaches_total",
 		metric.WithDescription("Number of latency SLO breaches per endpoint and status code"),
 		metric.WithUnit("1"),
 	)
@@ -77,7 +77,7 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	}
 
 	sloMetricsProc.requestCounter, err = meter.Int64Counter(
-		"aff_otel_request",
+		"aff_otel_requests_total",
 		metric.WithDescription("Number of requests per endpoint and status code"),
 		metric.WithUnit("1"),
 	)
@@ -115,7 +115,6 @@ func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld p
 func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRecord plog.LogRecord) error {
 	endpointType, err := sloMetricsProc.determineEndpointType(logRecord)
 	if err != nil {
-		sloMetricsProc.logger.Warn("Failed to determine endpoint type", zap.Error(err))
 		return err
 	}
 
@@ -130,11 +129,7 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 	}
 	statusCode, err := strconv.ParseInt(statusCodeVal, 10, 64)
 	if err != nil {
-		sloMetricsProc.logger.Warn("Failed to parse status_code as int64",
-			zap.Any("status_code", statusCode),
-			zap.Error(err),
-		)
-		return fmt.Errorf("failed to parse status_code: %v", err)
+		return err
 	}
 
 	method, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "method")
@@ -148,16 +143,6 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 	}
 	duration, err := strconv.ParseFloat(durationAttr, 64)
 	if err != nil {
-		sloMetricsProc.logger.Warn("Failed to parse duration as float64",
-			zap.Any("duration", duration),
-			zap.Error(err),
-		)
-		return fmt.Errorf("failed to parse duration: %v", err)
-	}
-
-	objective, err := sloMetricsProc.getEndpointSlo(endpoint, method, endpointType)
-	if err != nil {
-		sloMetricsProc.logger.Error(err.Error())
 		return err
 	}
 
@@ -165,10 +150,17 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 	sloMetricsProc.requestCounter.Add(ctx, 1,
 		metric.WithAttributes(
 			attribute.String("endpoint", endpoint),
+			attribute.String("endpoint_type", endpointType),
 			attribute.Int64("status_code", statusCode),
 			attribute.String("method", method),
 		),
 	)
+
+	objective, err := sloMetricsProc.getEndpointSlo(endpoint, method, endpointType)
+	if err != nil {
+		sloMetricsProc.logger.Error(err.Error())
+		return err
+	}
 
 	// Check for latency breaches, and increment breach counter for each quantile breached
 	for quantile, threshold := range objective.Latency {
@@ -177,6 +169,7 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 				metric.WithAttributes(
 					attribute.String("endpoint", endpoint),
 					attribute.Int64("status_code", statusCode),
+					attribute.String("endpoint_type", endpointType),
 					attribute.String("method", method),
 					attribute.Float64("objective", threshold.Seconds()),
 					attribute.String("quantile", quantile),
@@ -185,7 +178,7 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 		}
 	}
 
-	sloMetricsProc.logger.Info("Processed log",
+	sloMetricsProc.logger.Debug("Processed log",
 		zap.String("endpoint", endpoint),
 		zap.String("endpointType", endpointType),
 		zap.Int64("status_code", statusCode),
