@@ -51,6 +51,10 @@ test_slo:
 	--telemetry-attributes x_affirm_endpoint_name=\"/api/pf/authentication/v1/\" --telemetry-attributes status_code=\"200\" \
 	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
 	
+	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"http\" \
+	--telemetry-attributes x_affirm_endpoint_name=\"/non-existant\" --telemetry-attributes status_code=\"200\" \
+	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
+	
 	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"application/rpc2\" \
 	--telemetry-attributes path=\"/affirm.members.service.apis.api_v1/get_user_locale_v1\" \
 	--telemetry-attributes status_code=\"200\" --telemetry-attributes method=\"POST\" \
