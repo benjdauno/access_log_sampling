@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -48,15 +50,22 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	ctx, sloMetricsProc.cancel = context.WithCancel(ctx)
 	// Set the log level from the environment variable
 	sloMetricsProc.setLogLevel()
-	sloMetricsProc.environment = "dev"
+
+	sloMetricsProc.logger.Info("Starting log processor with config", zap.String("sloConfigFile", sloMetricsProc.config.SloConfigFile))
 	sloMetricsProc.queryInterval = 2 * time.Minute
 
-	// Pull SLO config
-	sloMetricsProc.sloConfig = sloMetricsProc.getSloConfig()
+	// Pull SLO config, at this point it should be a valid yaml file
+	var err error
+	sloMetricsProc.sloConfig, err = sloMetricsProc.readSloConfigFile(sloMetricsProc.config.SloConfigFile)
+	if err != nil {
+		sloMetricsProc.logger.Error("Failed to read slo yaml file", zap.Error(err))
+		return err
+	}
 
 	// Set up internal otel telemetry
 	meter := sloMetricsProc.meterProvider.Meter("slo_metrics_processor")
-	var err error
+
+	// Initialize custom counters. Labels are added at increment time.
 	sloMetricsProc.latencyBreachCounter, err = meter.Int64Counter(
 		"aff_otel_slo_latency_breach",
 		metric.WithDescription("Number of latency SLO breaches per endpoint and status code"),
@@ -92,7 +101,7 @@ func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld p
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
-				err := sloMetricsProc.processLatencyBreach(ctx, logRecord)
+				err := sloMetricsProc.processLog(ctx, logRecord)
 				if err != nil {
 					sloMetricsProc.logger.Warn("Failed to process latency breach", zap.Error(err))
 				}
@@ -103,31 +112,7 @@ func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld p
 	return sloMetricsProc.nextConsumer.ConsumeLogs(ctx, ld)
 }
 
-type EndpointSloConfig struct {
-	latency     map[string]float64
-	successRate float64
-}
-
-type SloConfig struct {
-	endpoints map[string]EndpointSloConfig
-}
-
-func (sloMetricsProc *sloMetricsProcessor) getSloConfig() SloConfig {
-	// TODO: Read from config yaml
-	return SloConfig{
-		endpoints: map[string]EndpointSloConfig{
-			"POST /some/dummy/path": {
-				latency: map[string]float64{
-					"0.5":  0.5,
-					"0.99": 0.75,
-				},
-				successRate: 0.999,
-			},
-		},
-	}
-}
-
-func (sloMetricsProc *sloMetricsProcessor) processLatencyBreach(ctx context.Context, logRecord plog.LogRecord) error {
+func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRecord plog.LogRecord) error {
 	endpointType, err := sloMetricsProc.determineEndpointType(logRecord)
 	if err != nil {
 		sloMetricsProc.logger.Warn("Failed to determine endpoint type", zap.Error(err))
@@ -170,7 +155,7 @@ func (sloMetricsProc *sloMetricsProcessor) processLatencyBreach(ctx context.Cont
 		return fmt.Errorf("failed to parse duration: %v", err)
 	}
 
-	objective, err := sloMetricsProc.getEndpointSlo(endpoint, method)
+	objective, err := sloMetricsProc.getEndpointSlo(endpoint, method, endpointType)
 	if err != nil {
 		sloMetricsProc.logger.Error(err.Error())
 		return err
@@ -186,23 +171,23 @@ func (sloMetricsProc *sloMetricsProcessor) processLatencyBreach(ctx context.Cont
 	)
 
 	// Check for latency breaches, and increment breach counter for each quantile breached
-	for quantile, threshold := range objective.latency {
-		if duration > threshold {
-			sloMetricsProc.logger.Warn("incrementing latency breach counter")
+	for quantile, threshold := range objective.Latency {
+		if duration > threshold.Seconds() {
 			sloMetricsProc.latencyBreachCounter.Add(ctx, 1,
 				metric.WithAttributes(
 					attribute.String("endpoint", endpoint),
 					attribute.Int64("status_code", statusCode),
 					attribute.String("method", method),
-					attribute.Float64("objective", threshold),
+					attribute.Float64("objective", threshold.Seconds()),
 					attribute.String("quantile", quantile),
 				),
 			)
 		}
 	}
 
-	sloMetricsProc.logger.Info("Processed latency breach",
+	sloMetricsProc.logger.Info("Processed log",
 		zap.String("endpoint", endpoint),
+		zap.String("endpointType", endpointType),
 		zap.Int64("status_code", statusCode),
 		zap.String("method", method),
 		zap.String("duration", durationAttr),
@@ -237,11 +222,69 @@ func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.
 	}
 }
 
-func (sloMetricsProc *sloMetricsProcessor) getEndpointSlo(endpoint string, method string) (EndpointSloConfig, error) {
-	key := method + " " + endpoint
-	slo, exists := sloMetricsProc.sloConfig.endpoints[key]
+type EndpointSloConfig struct {
+	Latency     map[string]time.Duration `yaml:"latency"`
+	SuccessRate float64                  `yaml:"success_rate"`
+}
+
+type SloConfig struct {
+	Slos map[string]map[string]EndpointSloConfig `yaml:"slos"`
+}
+
+// Custom unmarshal for EndpointSloConfig to convert duration strings to time.Duration.
+func (c *EndpointSloConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// temporary struct to hold raw values
+	var raw struct {
+		Latency     map[string]string `yaml:"latency"`
+		SuccessRate float64           `yaml:"success_rate"`
+	}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	c.Latency = make(map[string]time.Duration)
+	for quantile, durStr := range raw.Latency {
+		d, err := time.ParseDuration(durStr)
+		if err != nil {
+			return fmt.Errorf("failed to parse duration %q for quantile %s: %w", durStr, quantile, err)
+		}
+		c.Latency[quantile] = d
+	}
+	c.SuccessRate = raw.SuccessRate
+	return nil
+}
+
+func (sloMetricsProc *sloMetricsProcessor) readSloConfigFile(sloConfigFile string) (SloConfig, error) {
+	var sloConfig SloConfig
+
+	f, err := os.ReadFile(sloConfigFile)
+	if err != nil {
+		return SloConfig{}, fmt.Errorf("failed to read slo_config_file at %q: %w", sloConfigFile, err)
+	}
+
+	// Uses custom UnmarshalYAML for EndpointSloConfig
+	if err := yaml.Unmarshal(f, &sloConfig); err != nil {
+		return SloConfig{}, err
+	}
+	sloMetricsProc.logger.Info("Read SLO config file", zap.Any("sloConfig", sloConfig))
+
+	return sloConfig, nil
+}
+
+func (sloMetricsProc *sloMetricsProcessor) getEndpointSlo(endpoint string, method string, endpointType string) (EndpointSloConfig, error) {
+	var key string
+	switch {
+	case endpointType == "rpc2" || endpointType == "grpc":
+		key = endpoint
+	case endpointType == "http":
+		key = method + " " + endpoint
+	default:
+		return EndpointSloConfig{}, fmt.Errorf("unknown endpoint type: %s", endpointType)
+	}
+
+	slo, exists := sloMetricsProc.sloConfig.Slos[endpointType][key]
 	if !exists {
-		return EndpointSloConfig{}, fmt.Errorf("SLO not found for endpoint: %s", key)
+		return EndpointSloConfig{}, fmt.Errorf("SLO not found for endpoint: %s and method: %s", key, method)
 	}
 	return slo, nil
 }
