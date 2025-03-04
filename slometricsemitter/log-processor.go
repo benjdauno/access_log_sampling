@@ -158,8 +158,13 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 
 	objective, err := sloMetricsProc.getEndpointSlo(endpoint, method, endpointType)
 	if err != nil {
-		sloMetricsProc.logger.Error(err.Error())
-		return err
+		// No SLO found for endpoint, just debug log for now and skip processing
+		sloMetricsProc.logger.Debug("SLO not found for endpoint",
+			zap.String("endpoint", endpoint),
+			zap.String("method", method),
+			zap.String("endpoint_type", endpointType),
+		)
+		return nil
 	}
 
 	// Check for latency breaches, and increment breach counter for each quantile breached
