@@ -2,40 +2,56 @@ package slometricsemitter
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"slices"
-	// "strings"
-	// "time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	// DefaultSamplingRate         float32 `mapstructure:"sampling_rate"`
-	// ExcludedEndpointsConfigFile string  `mapstructure:"excluded_endpoints"`
+	SloConfigFile string `mapstructure:"slo_config_file"`
+	Environment   string `mapstructure:"environment"`
+	LogLevel      string `mapstructure:"log_level"`
 	// PrometheusURL               string  `mapstructure:"prometheus_url"`
-	Environment string `mapstructure:"environment"`
 	// RefreshInterval             string  `mapstructure:"refresh_interval"`
-	LogLevel string `mapstructure:"log_level"`
 }
 
 func (cfg *Config) Validate() error {
-	// if cfg.DefaultSamplingRate <= 0 || cfg.DefaultSamplingRate > 1 {
-	// 	return fmt.Errorf("invalid sampling rate: %f. Default sampling rate must be between 0 and 1", cfg.DefaultSamplingRate)
-	// }
-	// //Ensure he Prometheus URL starts with http:// or https://
-	// if !strings.HasPrefix(cfg.PrometheusURL, "http://") && !strings.HasPrefix(cfg.PrometheusURL, "https://") {
-	// 	return fmt.Errorf("invalid Prometheus URL: %s. URL must start with http:// or https://", cfg.PrometheusURL)
-	// }
+	if cfg.SloConfigFile == "" {
+		return fmt.Errorf("slo_config_file must be specified")
+	}
 
 	if !slices.Contains([]string{"dev", "thor", "stage", "prod"}, cfg.Environment) {
 		return fmt.Errorf("invalid environment: %s. Valid environments are dev, thor, stage, prod", cfg.Environment)
 	}
 
-	// //Ensure the refresh interval is a valid duration in golang time
-	// if _, err := time.ParseDuration(cfg.RefreshInterval); err != nil {
-	// 	return fmt.Errorf("invalid refresh interval: %s. Refresh interval must be a valid duration in golang time", cfg.RefreshInterval)
-	// }
 	if !slices.Contains([]string{"debug", "info", "warn", "error"}, cfg.LogLevel) {
 		return fmt.Errorf("invalid log level: %s. Valid log levels are debug, info, warn, error", cfg.LogLevel)
 	}
-	return nil
 
+	// Check that slo_config_file exists and is not a directory
+	_, err := os.Stat(cfg.SloConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to stat slo_config_file at %q: %w", cfg.SloConfigFile, err)
+	}
+
+	// Try opening and parsing the file as YAML
+	f, err := os.Open(cfg.SloConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to open slo_config_file at %q: %w", cfg.SloConfigFile, err)
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return fmt.Errorf("failed to read slo_config_file at %q: %w", cfg.SloConfigFile, err)
+	}
+
+	var sloConfig SloConfig
+	if err := yaml.Unmarshal(data, &sloConfig); err != nil {
+		return fmt.Errorf("slo_config_file %q is not in a valid format: %w", cfg.SloConfigFile, err)
+	}
+
+	return nil
 }

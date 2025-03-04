@@ -17,22 +17,14 @@ var (
 )
 
 const (
-	// defaultSamplingRate      = 1.0
-	// defaultExcludedEndpoints = "/etc/exclusions.txt"
-	// defaultPrometheusURL     = "http://localhost:9090"
 	defaultLogLevel = "info"
 	environment     = "dev"
-	// refreshInterval          = "3m"
 )
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		// DefaultSamplingRate:         defaultSamplingRate,
-		// ExcludedEndpointsConfigFile: defaultExcludedEndpoints,
-		// PrometheusURL:               defaultPrometheusURL,
 		LogLevel:    defaultLogLevel,
 		Environment: environment,
-		// RefreshInterval:             refreshInterval,
 	}
 }
 
@@ -42,15 +34,15 @@ func WithLogs(createLogsProcessor processor.CreateLogsFunc, sl component.Stabili
 
 func createLogsProcessor(_ context.Context, params processor.Settings, baseCfg component.Config, consumer consumer.Logs) (processor.Logs, error) {
 	logger := params.Logger
-	logSamplerCfg := baseCfg.(*Config)
-	if err := logSamplerCfg.Validate(); err != nil {
+	sloMetricsEmitterConfig := baseCfg.(*Config)
+	if err := sloMetricsEmitterConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 	logProcessor := &sloMetricsProcessor{
 		logger:        logger,
 		meterProvider: params.MeterProvider,
 		nextConsumer:  consumer,
-		config:        logSamplerCfg,
+		config:        sloMetricsEmitterConfig,
 	}
 
 	return logProcessor, nil
