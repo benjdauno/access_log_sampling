@@ -33,13 +33,28 @@ image:
 
 run:
 	@echo "Running binary..."
-	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/otel-config.yaml
+	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/volume-sampler-otel-config.yaml
+
+run_slo:
+	@echo "Running binary..."
+	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/slo-metrics-otel-config.yaml
 
 # Run telemetrygen to generate log traffic
 test:
 	@echo "Generating log traffic with telemetrygen..."
-	$(TELEMETRYGEN) logs --duration 30s --workers 4 --otlp-insecure --telemetry-attributes content_type=\"http\" \
+		$(TELEMETRYGEN) logs --duration 30s --workers 4 --otlp-insecure --telemetry-attributes content_type=\"http\" \
 	--telemetry-attributes x_affirm_endpoint_name=\"some/dummy/path\"
+
+test_slo:
+	@echo "Generating log traffic with telemetrygen..."
+	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"http\" \
+	--telemetry-attributes x_affirm_endpoint_name=\"/api/pf/authentication/v1/\" --telemetry-attributes status_code=\"200\" \
+	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
+	
+	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"application/rpc2\" \
+	--telemetry-attributes path=\"/affirm.members.service.apis.api_v1/get_user_locale_v1\" \
+	--telemetry-attributes status_code=\"200\" --telemetry-attributes method=\"POST\" \
+	--telemetry-attributes duration=\"456\"
 
 # Read messages from Kafka topic
 read-kafka:

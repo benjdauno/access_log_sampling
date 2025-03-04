@@ -80,7 +80,7 @@ services:
       - "8888:8888"
       - "55680:55680"  # OpenTelemetry receiver for traces
     volumes:
-      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel-config.yaml:/etc/otel-config.yaml:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/volume-sampler-otel-config.yaml:/etc/otel-config.yaml:cached
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/exclusions.txt:/etc/exclusions.txt:cached
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel_logs:/var/log/otel-logs:tmpfs
     command: ["--config", "/etc/otel-config.yaml"]

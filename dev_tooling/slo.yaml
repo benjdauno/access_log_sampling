@@ -1,0 +1,29 @@
+# Sample file for testing SLO metrics with OpenTelemetry Collector
+slos:
+  http:
+    POST /api/pf/authentication/v1/:
+      latency:
+        0.5:  0.134s
+        0.99: 0.488s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_email_pin: 
+      latency:
+        0.5:  0.834s
+        0.99: 1.925s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_phone_pin: 
+      latency:
+        0.5:  0.561s
+        0.99: 1.833s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_signup:
+      latency:
+        0.5:  1.507s
+        0.99: 3.480s
+      success_rate: 99.99
+  rpc2:
+    /affirm.members.service.apis.api_v1/get_user_locale_v1:
+      latency:
+        0.5:  0.5s
+        0.99: 0.75s
+      success_rate: 99.99
