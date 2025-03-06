@@ -42,12 +42,12 @@ run_slo:
 # Run unit tests
 test:
 	@echo "Running unit tests..."
-	$(GO) test ./...
+	$(GO) test ./slometricsemitter/...
 
 # Run unit tests with coverage
 test-coverage:
 	@echo "Running unit tests with coverage..."
-	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) test -coverprofile=coverage.out ./slometricsemitter/...
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated at coverage.html"
 
