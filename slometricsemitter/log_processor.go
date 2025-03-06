@@ -31,28 +31,23 @@ type sloMetricsProcessor struct {
 	sloConfig            SLOConfig // Contains latency SLO definitions
 	latencyBreachCounter metric.Int64Counter
 	requestCounter       metric.Int64Counter
-
-	environment   string        // "dev", "stage", or "prod"
-	queryInterval time.Duration // Query interval for development
+	environment          string // "dev", "stage", or "prod"
 }
 
 // Capabilities implements processor.Logs.
 func (sloMetricsProc *sloMetricsProcessor) Capabilities() consumer.Capabilities {
-	return consumer.Capabilities{MutatesData: true}
+	return consumer.Capabilities{MutatesData: false}
 }
 
-// Start fetches data from Prometheus and stores sampling rates in a map.
 // Overwriting ctx produces a warning, in the vscode go linter, but this is the recommendation from OTEL, so until otherwise indicated by OTEL docs,
 // Please leave the ctx manipulation as is.
 func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host component.Host) error {
 	sloMetricsProc.host = host
 	ctx = context.Background()
 	ctx, sloMetricsProc.cancel = context.WithCancel(ctx)
-	// Set the log level from the environment variable
 	sloMetricsProc.setLogLevel()
 
 	sloMetricsProc.logger.Info("Starting log processor with config", zap.String("sloConfigFile", sloMetricsProc.config.SLOConfigFile))
-	sloMetricsProc.queryInterval = 2 * time.Minute
 
 	// Pull SLO config, at this point it should be a valid yaml file
 	var err error
@@ -319,11 +314,16 @@ func (sloMetricsProc *sloMetricsProcessor) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// setLogLevel sets the log level based on the environment variable LOG_LEVEL.
+// setLogLevel sets the log level. Takes env variable as precedent, then falls back to processor config.
 func (sloMetricsProc *sloMetricsProcessor) setLogLevel() {
+
 	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" && sloMetricsProc.config != nil {
+		logLevel = sloMetricsProc.config.LogLevel
+	}
+
 	var level zapcore.Level
-	switch logLevel {
+	switch strings.ToLower(logLevel) {
 	case "debug":
 		level = zapcore.DebugLevel
 	case "info":
@@ -334,6 +334,8 @@ func (sloMetricsProc *sloMetricsProcessor) setLogLevel() {
 		level = zapcore.ErrorLevel
 	default:
 		level = zapcore.InfoLevel
+		sloMetricsProc.logger.Info("Invalid or empty log level, defaulting to INFO",
+			zap.String("provided_level", logLevel))
 	}
 
 	config := zap.NewProductionConfig()

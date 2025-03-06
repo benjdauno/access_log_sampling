@@ -13,8 +13,6 @@ type Config struct {
 	SLOConfigFile string `mapstructure:"slo_config_file"`
 	Environment   string `mapstructure:"environment"`
 	LogLevel      string `mapstructure:"log_level"`
-	// PrometheusURL               string  `mapstructure:"prometheus_url"`
-	// RefreshInterval             string  `mapstructure:"refresh_interval"`
 }
 
 func (cfg *Config) Validate() error {
