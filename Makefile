@@ -39,14 +39,27 @@ run_slo:
 	@echo "Running binary..."
 	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/slo-metrics-otel-config.yaml
 
-# Run telemetrygen to generate log traffic
+# Run unit tests
 test:
+	@echo "Running unit tests..."
+	$(GO) test ./...
+
+# Run unit tests with coverage
+test-coverage:
+	@echo "Running unit tests with coverage..."
+	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated at coverage.html"
+
+# Generate log traffic for testing
+gen-logs:
 	@echo "Generating log traffic with telemetrygen..."
-		$(TELEMETRYGEN) logs --duration 30s --workers 4 --otlp-insecure --telemetry-attributes content_type=\"http\" \
+	$(TELEMETRYGEN) logs --duration 30s --workers 4 --otlp-insecure --telemetry-attributes content_type=\"http\" \
 	--telemetry-attributes x_affirm_endpoint_name=\"some/dummy/path\"
 
-test_slo:
-	@echo "Generating log traffic with telemetrygen..."
+# Generate SLO-specific log traffic for testing
+gen-slo-logs:
+	@echo "Generating SLO-specific log traffic with telemetrygen..."
 	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"http\" \
 	--telemetry-attributes x_affirm_endpoint_name=\"/api/pf/authentication/v1/\" --telemetry-attributes status_code=\"200\" \
 	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
