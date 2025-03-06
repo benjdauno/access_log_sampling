@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/plog"
-	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/zap/zaptest"
@@ -223,17 +222,6 @@ slos:
 	}
 }
 
-// Helper function to verify metric attributes
-func hasAttributes(dp metricdata.DataPoint[int64], attrs map[string]string) bool {
-	for k, v := range attrs {
-		attrValue, ok := dp.Attributes.Value(attribute.Key(k))
-		if !ok || attrValue.AsString() != v {
-			return false
-		}
-	}
-	return true
-}
-
 // TestSloMetricsProcessorProcessLog tests internal method processLog
 func TestSloMetricsProcessorProcessLog(t *testing.T) {
 	configYaml := `
@@ -287,7 +275,7 @@ func TestSloMetricsProcessorMissingAttributes(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	proc := &sloMetricsProcessor{logger: logger}
 	lr := plog.NewLogRecord()
-	
+
 	err := proc.processLog(context.Background(), lr)
 	require.Error(t, err)
 }
