@@ -28,7 +28,7 @@ type sloMetricsProcessor struct {
 	meterProvider        metric.MeterProvider
 	nextConsumer         consumer.Logs
 	config               *Config
-	sloConfig            SloConfig // Contains latency SLO definitions
+	sloConfig            SLOConfig // Contains latency SLO definitions
 	latencyBreachCounter metric.Int64Counter
 	requestCounter       metric.Int64Counter
 
@@ -51,12 +51,12 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	// Set the log level from the environment variable
 	sloMetricsProc.setLogLevel()
 
-	sloMetricsProc.logger.Info("Starting log processor with config", zap.String("sloConfigFile", sloMetricsProc.config.SloConfigFile))
+	sloMetricsProc.logger.Info("Starting log processor with config", zap.String("sloConfigFile", sloMetricsProc.config.SLOConfigFile))
 	sloMetricsProc.queryInterval = 2 * time.Minute
 
 	// Pull SLO config, at this point it should be a valid yaml file
 	var err error
-	sloMetricsProc.sloConfig, err = sloMetricsProc.readSloConfigFile(sloMetricsProc.config.SloConfigFile)
+	sloMetricsProc.sloConfig, err = sloMetricsProc.readSLOConfigFile(sloMetricsProc.config.SLOConfigFile)
 	if err != nil {
 		sloMetricsProc.logger.Error("Failed to read slo yaml file", zap.Error(err))
 		return err
@@ -87,7 +87,7 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	}
 
 	// TODO: Set up periodic fetching of SLO definitions
-	// go sloMetricsProc.refreshSloDefinitions(ctx, token)
+	// go sloMetricsProc.refreshSLODefinitions(ctx, token)
 	return nil
 }
 
@@ -156,7 +156,7 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 		),
 	)
 
-	objective, err := sloMetricsProc.getEndpointSlo(endpoint, method, endpointType)
+	objective, err := sloMetricsProc.getEndpointSLO(endpoint, method, endpointType)
 	if err != nil {
 		// No SLO found for endpoint, just debug log for now and skip processing
 		sloMetricsProc.logger.Debug("SLO not found for endpoint",
@@ -220,17 +220,17 @@ func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.
 	}
 }
 
-type EndpointSloConfig struct {
+type EndpointSLOConfig struct {
 	Latency     map[string]time.Duration `yaml:"latency"`
 	SuccessRate float64                  `yaml:"success_rate"`
 }
 
-type SloConfig struct {
-	Slos map[string]map[string]EndpointSloConfig `yaml:"slos"`
+type SLOConfig struct {
+	SLOs map[string]map[string]EndpointSLOConfig `yaml:"slos"`
 }
 
-// Custom unmarshal for EndpointSloConfig to convert duration strings to time.Duration.
-func (c *EndpointSloConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// Custom unmarshal for EndpointSLOConfig to convert duration strings to time.Duration.
+func (c *EndpointSLOConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// temporary struct to hold raw values
 	var raw struct {
 		Latency     map[string]string `yaml:"latency"`
@@ -252,24 +252,24 @@ func (c *EndpointSloConfig) UnmarshalYAML(unmarshal func(interface{}) error) err
 	return nil
 }
 
-func (sloMetricsProc *sloMetricsProcessor) readSloConfigFile(sloConfigFile string) (SloConfig, error) {
-	var sloConfig SloConfig
+func (sloMetricsProc *sloMetricsProcessor) readSLOConfigFile(sloConfigFile string) (SLOConfig, error) {
+	var sloConfig SLOConfig
 
 	f, err := os.ReadFile(sloConfigFile)
 	if err != nil {
-		return SloConfig{}, fmt.Errorf("failed to read slo_config_file at %q: %w", sloConfigFile, err)
+		return SLOConfig{}, fmt.Errorf("failed to read slo_config_file at %q: %w", sloConfigFile, err)
 	}
 
-	// Uses custom UnmarshalYAML for EndpointSloConfig
+	// Uses custom UnmarshalYAML for EndpointSLOConfig
 	if err := yaml.Unmarshal(f, &sloConfig); err != nil {
-		return SloConfig{}, err
+		return SLOConfig{}, err
 	}
 	sloMetricsProc.logger.Info("Read SLO config file", zap.Any("sloConfig", sloConfig))
 
 	return sloConfig, nil
 }
 
-func (sloMetricsProc *sloMetricsProcessor) getEndpointSlo(endpoint string, method string, endpointType string) (EndpointSloConfig, error) {
+func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, method string, endpointType string) (EndpointSLOConfig, error) {
 	var key string
 	switch {
 	case endpointType == "rpc2" || endpointType == "grpc":
@@ -277,12 +277,12 @@ func (sloMetricsProc *sloMetricsProcessor) getEndpointSlo(endpoint string, metho
 	case endpointType == "http":
 		key = method + " " + endpoint
 	default:
-		return EndpointSloConfig{}, fmt.Errorf("unknown endpoint type: %s", endpointType)
+		return EndpointSLOConfig{}, fmt.Errorf("unknown endpoint type: %s", endpointType)
 	}
 
-	slo, exists := sloMetricsProc.sloConfig.Slos[endpointType][key]
+	slo, exists := sloMetricsProc.sloConfig.SLOs[endpointType][key]
 	if !exists {
-		return EndpointSloConfig{}, fmt.Errorf("SLO not found for endpoint: %s and method: %s", key, method)
+		return EndpointSLOConfig{}, fmt.Errorf("SLO not found for endpoint: %s and method: %s", key, method)
 	}
 	return slo, nil
 }

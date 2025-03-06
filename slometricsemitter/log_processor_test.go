@@ -31,7 +31,7 @@ func createProcessorWithConfig(t *testing.T, configYaml string) (*sloMetricsProc
 
 	proc := &sloMetricsProcessor{
 		logger:        logger,
-		config:        &Config{SloConfigFile: sloFilePath},
+		config:        &Config{SLOConfigFile: sloFilePath},
 		meterProvider: meterProvider,
 		nextConsumer:  consumertest.NewNop(),
 	}
@@ -57,10 +57,10 @@ func countMetrics(metrics metricdata.ResourceMetrics) (breachCount, requestCount
 	return
 }
 
-// TestSloMetricsProcessorStartShutdown verifies that the processor can start and shut down
+// TestSLOMetricsProcessorStartShutdown verifies that the processor can start and shut down
 // without error. It also checks that reading an SLO config file works when the file exists
 // (and fails when the file does not exist).
-func TestSloMetricsProcessorStartShutdown(t *testing.T) {
+func TestSLOMetricsProcessorStartShutdown(t *testing.T) {
 	configYaml := `
 slos:
   http:
@@ -77,8 +77,8 @@ slos:
 	require.NoError(t, err, "expected no error on Start")
 
 	// Check that the SLO config was read
-	require.NotNil(t, proc.sloConfig.Slos["http"])
-	endpointCfg, exists := proc.sloConfig.Slos["http"]["GET /test/path"]
+	require.NotNil(t, proc.sloConfig.SLOs["http"])
+	endpointCfg, exists := proc.sloConfig.SLOs["http"]["GET /test/path"]
 	require.True(t, exists)
 	assert.InDelta(t, 0.1, endpointCfg.Latency["0.5"].Seconds(), 0.001)
 	assert.InDelta(t, 0.9, endpointCfg.Latency["0.99"].Seconds(), 0.001)
@@ -87,15 +87,15 @@ slos:
 	require.NoError(t, proc.Shutdown(context.Background()))
 }
 
-// TestSloMetricsProcessorStartInvalidFile ensures an error occurs if the SLO config file is missing
-func TestSloMetricsProcessorStartInvalidFile(t *testing.T) {
+// TestSLOMetricsProcessorStartInvalidFile ensures an error occurs if the SLO config file is missing
+func TestSLOMetricsProcessorStartInvalidFile(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
 	proc := &sloMetricsProcessor{
 		logger:        logger,
-		config:        &Config{SloConfigFile: "/non/existent/file.yaml"},
+		config:        &Config{SLOConfigFile: "/non/existent/file.yaml"},
 		meterProvider: meterProvider,
 		nextConsumer:  consumertest.NewNop(),
 	}
@@ -104,9 +104,9 @@ func TestSloMetricsProcessorStartInvalidFile(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestSloMetricsProcessorConsumeLogs tests that the processor increments the appropriate counters
+// TestSLOMetricsProcessorConsumeLogs tests that the processor increments the appropriate counters
 // and forwards logs to the next consumer.
-func TestSloMetricsProcessorConsumeLogs(t *testing.T) {
+func TestSLOMetricsProcessorConsumeLogs(t *testing.T) {
 	configYaml := `
 slos:
   http:
@@ -222,8 +222,8 @@ slos:
 	}
 }
 
-// TestSloMetricsProcessorProcessLog tests internal method processLog
-func TestSloMetricsProcessorProcessLog(t *testing.T) {
+// TestSLOMetricsProcessorProcessLog tests internal method processLog
+func TestSLOMetricsProcessorProcessLog(t *testing.T) {
 	configYaml := `
 slos:
   http:
@@ -270,8 +270,8 @@ slos:
 	require.NoError(t, proc.Shutdown(context.Background()))
 }
 
-// TestSloMetricsProcessorMissingAttributes ensures we get an error (and a warning) if required attributes are missing.
-func TestSloMetricsProcessorMissingAttributes(t *testing.T) {
+// TestSLOMetricsProcessorMissingAttributes ensures we get an error (and a warning) if required attributes are missing.
+func TestSLOMetricsProcessorMissingAttributes(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	proc := &sloMetricsProcessor{logger: logger}
 	lr := plog.NewLogRecord()
@@ -403,8 +403,8 @@ func TestEndpointExtraction(t *testing.T) {
 	}
 }
 
-// TestSloConfigParsing tests various SLO config parsing scenarios
-func TestSloConfigParsing(t *testing.T) {
+// TestSLOConfigParsing tests various SLO config parsing scenarios
+func TestSLOConfigParsing(t *testing.T) {
 	tests := []struct {
 		name        string
 		configYaml  string
@@ -447,7 +447,7 @@ slos:
 
 			proc := &sloMetricsProcessor{logger: zaptest.NewLogger(t)}
 
-			_, err := proc.readSloConfigFile(tmpFile)
+			_, err := proc.readSLOConfigFile(tmpFile)
 			if tc.shouldError {
 				require.Error(t, err)
 				return
