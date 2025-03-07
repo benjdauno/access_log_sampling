@@ -28,6 +28,7 @@ require (
 	go.opentelemetry.io/collector/receiver v0.119.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.119.0
 	golang.org/x/sys v0.29.0
+	slometricsemitter v0.0.1
 	volumebasedlogsampler v0.0.1
 )
 
@@ -217,3 +218,5 @@ require (
 )
 
 replace volumebasedlogsampler v0.0.1 => /workspaces/access_log_sampling/volumebasedlogsampler
+
+replace slometricsemitter v0.0.1 => /workspaces/access_log_sampling/slometricsemitter

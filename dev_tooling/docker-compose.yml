@@ -79,8 +79,10 @@ services:
       - "4317:4317"    # gRPC receiver for OTLP
       - "8888:8888"
       - "55680:55680"  # OpenTelemetry receiver for traces
+    # TODO later: Modularize the docker compose setup so we can keep adding stuff without conflicts
+    # https://docs.docker.com/compose/how-tos/multiple-compose-files/
     volumes:
-      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel-config.yaml:/etc/otel-config.yaml:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/slo-metrics-otel-config.yaml:/etc/otel-config.yaml:cached
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/exclusions.txt:/etc/exclusions.txt:cached
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel_logs:/var/log/otel-logs:tmpfs
     command: ["--config", "/etc/otel-config.yaml"]

@@ -1,0 +1,128 @@
+# Sample file for testing SLO metrics with OpenTelemetry Collector
+slos:
+  http:
+    POST /api/pf/authentication/v1/:
+      latency:
+        0.5:  0.134s
+        0.99: 0.488s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_email_pin: 
+      latency:
+        0.5:  0.834s
+        0.99: 1.925s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_phone_pin: 
+      latency:
+        0.5:  0.561s
+        0.99: 1.833s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_signup:
+      latency:
+        0.5:  1.507s
+        0.99: 3.480s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/:
+      latency:
+        0.50: 1.771s
+        0.99: 5.246s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_address_confirmation:
+      latency:
+        0.50: 2.194s
+        0.99: 5.545s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_ssn_last_four:
+      latency:
+        0.50: 1.430s
+        0.99: 5.084s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_onfido:
+      latency:
+        0.50: 0.152s
+        0.99: 0.930s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_sms_link:
+      latency:
+        0.50: 0.140s
+        0.99: 0.640s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/:
+      latency:
+        0.50: 0.186s
+        0.99: 0.613s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_underwriting:
+      latency:
+        0.50: 3.750s
+        0.99: 7.015s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/start_underwriting:
+      latency:
+        0.50: 0.290s
+        0.99: 2.654s
+      success_rate: 99.99
+    POST /api/v3/virtual_cards/:
+      latency:
+        0.50: 0.723s
+        0.99: 1.727s
+      success_rate: 99.99
+    # Additional http endpoints per checkout latency SLO program. Needs endpoints
+    # https://docs.google.com/spreadsheets/d/161tMDNJQevB4IBsVBN-SLg2-y5-llizhpUalzbGKflM/edit?gid=991659123#gid=991659123
+    # POST terms_flow_api.edit_email_link:
+    #   latency:
+    #     0.50: 0.206s
+    #     0.99: 1.296s
+    # POST terms_flow_api.initialize_unfreeze_credit_report:
+    #   latency:
+    #     0.50: 0.727s
+    #     0.99: 2.472s
+    # POST terms_flow_api.poll_email_link:
+    #   latency:
+    #     0.50: 0.137s
+    #     0.99: 1.529s
+    # POST terms_flow_api.poll_physical_id:
+    #   latency:
+    #     0.50: N/As
+    #     0.99: N/As
+    # POST terms_flow_api.poll_unfreeze_credit_report:
+    #   latency:
+    #     0.50: 0.599s
+    #     0.99: 2.204s
+    # POST terms_flow_api.resend_email_link:
+    #   latency:
+    #     0.50: 0.314s
+    #     0.99: 1.386s
+    # POST terms_flow_api.resend_sms_link:
+    #   latency:
+    #     0.50: 0.361s
+    #     0.99: 1.631s
+    # POST terms_flow_api.skip_email_link:
+    #   latency:
+    #     0.50: 0.230s
+    #     0.99: 1.609s
+    # POST /api/pf/terms/v1/<flow_ari>/submit_address_confirmation:
+    #   latency:
+    #     0.50: 3.471s
+    #     0.99: 6.666s
+    # POST terms_flow_api.submit_full_ssn_and_address:
+    #   latency:
+    #     0.50: 3.888s
+    #     0.99: 9.487s
+    # POST terms_flow_api.submit_onfido:
+    #   latency:
+    #     0.50: 1.086s
+    #     0.99: 2.006s
+    # POST terms_flow_api.submit_pii_confirmation:
+    #   latency:
+    #     0.50: 1.747s
+    #     0.99: 5.029s
+    # POST terms_flow_api.verify_physical_id:
+    #   latency:
+    #     0.50: N/As
+    #     0.99: N/As
+  rpc2:
+    /affirm.members.service.apis.api_v1/get_user_locale_v1:
+      latency:
+        0.5:  0.5s
+        0.99: 0.75s
+      success_rate: 99.99
