@@ -4,33 +4,16 @@ services:
     container_name: nginx
     ports:
       - "8081:80"
-    volumes:
-      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/nginx_logs:/var/log/nginx:tmpfs
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   apache:
     image: httpd:latest
     container_name: apache
     ports:
       - "8082:80"
-    volumes:
-      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/apache_logs:/usr/local/apache2/logs:tmpfs
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   envoy:
     image: envoyproxy/envoy:v1.32.1
     container_name: envoy
-    volumes:
-      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/envoy.yaml:/etc/envoy/envoy.yaml
-      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/envoy_logs:/var/log/envoy:tmpfs
     ports:
       - "8080:8080"
       - "9901:9901"  # Envoy Admin interface
@@ -82,7 +65,7 @@ services:
     # TODO later: Modularize the docker compose setup so we can keep adding stuff without conflicts
     # https://docs.docker.com/compose/how-tos/multiple-compose-files/
     volumes:
-      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/slo-metrics-otel-config.yaml:/etc/otel-config.yaml:cached
+      - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/volume-sampler-otel-config.yaml:/etc/otel-config.yaml:cached
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/exclusions.txt:/etc/exclusions.txt:cached
       - ${MOUNT_HOME}/workspace/access_log_sampling/dev_tooling/otel_logs:/var/log/otel-logs:tmpfs
     command: ["--config", "/etc/otel-config.yaml"]
