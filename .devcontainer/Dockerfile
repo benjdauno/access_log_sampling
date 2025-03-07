@@ -1,5 +1,5 @@
 # Start from a Go image for convenience
-FROM golang:1.23-bullseye
+FROM golang:1.22-bullseye
 
 # Install prerequisites
 RUN apt-get update && apt-get install -y \
@@ -22,14 +22,14 @@ RUN curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-
 
 # Install the OpenTelemetry Collector Builder (ocb) & Go debugger
 RUN curl --proto '=https' --tlsv1.2 -fL -o /tmp/ocb \
-    https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.118.0/ocb_0.118.0_linux_amd64 && \
+    https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.119.0/ocb_0.119.0_linux_amd64 && \
     chmod +x /tmp/ocb && \
     mv /tmp/ocb /usr/local/bin/ocb
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest &&\
-    go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest &&\
+    go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@v0.119.0 &&\
     go install golang.org/x/tools/cmd/goimports@latest &&\
-    go install golang.org/x/tools/gopls@latest
+    go install golang.org/x/tools/gopls@v0.16.1
 
 
 

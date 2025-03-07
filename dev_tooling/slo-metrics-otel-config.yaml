@@ -1,0 +1,32 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+  volumebasedlogsampler:
+    sampling_rate: 1
+    log_level: debug
+    prometheus_url: https://affirm.chronosphere.io/data/metrics
+  slometricsemitter:
+    slo_config_file: /workspaces/access_log_sampling/dev_tooling/slo.yaml
+    environment: dev
+    log_level: debug
+
+exporters:
+  kafka:
+    brokers: ["kafka:9092"]
+    topic: otel-logs
+  debug:
+
+service:
+  telemetry:
+    metrics:
+      address: '0.0.0.0:8888'
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch, slometricsemitter]
+      exporters: [debug]

@@ -18,7 +18,7 @@ all: collector binary image
 # Build the OpenTelemetry Collector components using ocb
 collector:
 	@echo "Building OpenTelemetry Collector components..."
-	$(OCB) --config /workspaces/access_log_sampling/builder-config.yaml --output-path=$(BUILD_DIR) &&\
+	$(OCB) --config /workspaces/access_log_sampling/builder-config.yaml &&\
 	mkdir -p bin && mv ${BUILD_DIR}/${COLLECTOR_NAME} bin/
 
 # Build the binary using Go
@@ -33,13 +33,45 @@ image:
 
 run:
 	@echo "Running binary..."
-	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/otel-config.yaml
+	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/volume-sampler-otel-config.yaml
 
-# Run telemetrygen to generate log traffic
+run_slo:
+	@echo "Running binary..."
+	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/slo-metrics-otel-config.yaml
+
+# Run unit tests
 test:
+	@echo "Running unit tests..."
+	$(GO) test ./slometricsemitter/...
+
+# Run unit tests with coverage
+test-coverage:
+	@echo "Running unit tests with coverage..."
+	$(GO) test -coverprofile=coverage.out ./slometricsemitter/...
+	$(GO) tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated at coverage.html"
+
+# Generate log traffic for testing
+gen-logs:
 	@echo "Generating log traffic with telemetrygen..."
 	$(TELEMETRYGEN) logs --duration 30s --workers 4 --otlp-insecure --telemetry-attributes content_type=\"http\" \
 	--telemetry-attributes x_affirm_endpoint_name=\"some/dummy/path\"
+
+# Generate SLO-specific log traffic for testing
+gen-slo-logs:
+	@echo "Generating SLO-specific log traffic with telemetrygen..."
+	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"http\" \
+	--telemetry-attributes x_affirm_endpoint_name=\"/api/pf/authentication/v1/\" --telemetry-attributes status_code=\"200\" \
+	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
+	
+	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"http\" \
+	--telemetry-attributes x_affirm_endpoint_name=\"/non-existant\" --telemetry-attributes status_code=\"200\" \
+	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
+	
+	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"application/rpc2\" \
+	--telemetry-attributes path=\"/affirm.members.service.apis.api_v1/get_user_locale_v1\" \
+	--telemetry-attributes status_code=\"200\" --telemetry-attributes method=\"POST\" \
+	--telemetry-attributes duration=\"456\"
 
 # Read messages from Kafka topic
 read-kafka:
