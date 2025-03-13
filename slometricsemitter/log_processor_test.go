@@ -39,24 +39,6 @@ func createProcessorWithConfig(t *testing.T, configYaml string) (*sloMetricsProc
 	return proc, reader
 }
 
-// Helper function to count breaches and requests from metrics
-func countMetrics(metrics metricdata.ResourceMetrics) (breachCount, requestCount int) {
-	for _, m := range metrics.ScopeMetrics {
-		for _, instrument := range m.Metrics {
-			if instrument.Name == "aff_otel_slo_latency_breaches_total" {
-				if sum, ok := instrument.Data.(metricdata.Sum[int64]); ok {
-					breachCount += len(sum.DataPoints)
-				}
-			} else if instrument.Name == "aff_otel_requests_total" {
-				if sum, ok := instrument.Data.(metricdata.Sum[int64]); ok {
-					requestCount += len(sum.DataPoints)
-				}
-			}
-		}
-	}
-	return
-}
-
 // TestSLOMetricsProcessorStartShutdown verifies that the processor can start and shut down
 // without error. It also checks that reading an SLO config file works when the file exists
 // (and fails when the file does not exist).
@@ -132,7 +114,7 @@ slos:
 			name: "HTTP request within SLO",
 			attributes: map[string]string{
 				"method":                 "GET",
-				"status_code":            "200",
+				"response_code":          "200",
 				"content_type":           "application/json",
 				"x_affirm_endpoint_name": "/test/path",
 				"duration":               "0.050",
@@ -143,7 +125,7 @@ slos:
 			name: "HTTP request breaching 0.5 SLO",
 			attributes: map[string]string{
 				"method":                 "GET",
-				"status_code":            "200",
+				"response_code":          "200",
 				"content_type":           "application/json",
 				"x_affirm_endpoint_name": "/test/path",
 				"duration":               "0.300",
@@ -154,7 +136,7 @@ slos:
 			name: "HTTP request breaching both SLOs",
 			attributes: map[string]string{
 				"method":                 "GET",
-				"status_code":            "200",
+				"response_code":          "200",
 				"content_type":           "application/json",
 				"x_affirm_endpoint_name": "/test/path",
 				"duration":               "0.600",
@@ -164,11 +146,11 @@ slos:
 		{
 			name: "gRPC request breaching SLO",
 			attributes: map[string]string{
-				"method":       "POST",
-				"status_code":  "200",
-				"content_type": "application/grpc",
-				"path":         "/service/method",
-				"duration":     "0.300",
+				"method":        "POST",
+				"response_code": "200",
+				"content_type":  "application/grpc",
+				"path":          "/service/method",
+				"duration":      "0.300",
 			},
 			expectedBreaches: 1,
 		},
@@ -176,7 +158,7 @@ slos:
 			name: "Unknown endpoint",
 			attributes: map[string]string{
 				"method":                 "GET",
-				"status_code":            "200",
+				"response_code":          "200",
 				"content_type":           "application/json",
 				"x_affirm_endpoint_name": "/unknown/path",
 				"duration":               "0.300",
@@ -250,7 +232,7 @@ slos:
 		t.Run(tc.name, func(t *testing.T) {
 			lr := plog.NewLogRecord()
 			lr.Attributes().PutStr("method", "POST")
-			lr.Attributes().PutStr("status_code", "200")
+			lr.Attributes().PutStr("response_code", "200")
 			lr.Attributes().PutStr("content_type", "application/json")
 			lr.Attributes().PutStr("x_affirm_endpoint_name", "/my/endpoint")
 			lr.Attributes().PutStr("duration", floatToStr(tc.duration))
@@ -308,8 +290,8 @@ func TestEndpointTypeDetection(t *testing.T) {
 			expectedType: "rpc2",
 		},
 		{
-			name:        "Missing content type",
-			shouldError: true,
+			name:         "Missing content type",
+			expectedType: "http",
 		},
 	}
 
@@ -322,13 +304,7 @@ func TestEndpointTypeDetection(t *testing.T) {
 				lr.Attributes().PutStr("content_type", tc.contentType)
 			}
 
-			endpointType, err := proc.determineEndpointType(lr)
-			if tc.shouldError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
+			endpointType := proc.determineEndpointType(lr)
 			assert.Equal(t, tc.expectedType, endpointType)
 		})
 	}
@@ -455,4 +431,22 @@ slos:
 			require.NoError(t, err)
 		})
 	}
+}
+
+// Helper function to count breaches and requests from metrics
+func countMetrics(metrics metricdata.ResourceMetrics) (breachCount, requestCount int) {
+	for _, m := range metrics.ScopeMetrics {
+		for _, instrument := range m.Metrics {
+			if instrument.Name == "aff_otel_slo_latency_breaches_total" {
+				if sum, ok := instrument.Data.(metricdata.Sum[int64]); ok {
+					breachCount += len(sum.DataPoints)
+				}
+			} else if instrument.Name == "aff_otel_requests_total" {
+				if sum, ok := instrument.Data.(metricdata.Sum[int64]); ok {
+					requestCount += len(sum.DataPoints)
+				}
+			}
+		}
+	}
+	return
 }

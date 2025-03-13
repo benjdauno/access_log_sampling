@@ -47,7 +47,10 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	ctx, sloMetricsProc.cancel = context.WithCancel(ctx)
 	sloMetricsProc.setLogLevel()
 
-	sloMetricsProc.logger.Info("Starting log processor with config", zap.String("sloConfigFile", sloMetricsProc.config.SLOConfigFile))
+	sloMetricsProc.logger.Info("Starting log processor with config and log level",
+		zap.String("sloConfigFile", sloMetricsProc.config.SLOConfigFile),
+		zap.String("logLevel", sloMetricsProc.config.LogLevel),
+	)
 
 	// Pull SLO config, at this point it should be a valid yaml file
 	var err error
@@ -99,6 +102,9 @@ func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld p
 				err := sloMetricsProc.processLog(ctx, logRecord)
 				if err != nil {
 					sloMetricsProc.logger.Warn("Failed to process latency breach", zap.Error(err))
+					sloMetricsProc.logger.Debug("Log record",
+						zap.Any("attributes", logRecord.Attributes().AsRaw()),
+					)
 				}
 			}
 		}
@@ -108,17 +114,14 @@ func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld p
 }
 
 func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRecord plog.LogRecord) error {
-	endpointType, err := sloMetricsProc.determineEndpointType(logRecord)
-	if err != nil {
-		return err
-	}
+	endpointType := sloMetricsProc.determineEndpointType(logRecord)
 
 	endpoint, err := sloMetricsProc.extractEndpoint(logRecord, endpointType)
 	if err != nil {
 		return err
 	}
 
-	statusCodeVal, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "status_code")
+	statusCodeVal, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "response_code")
 	if err != nil {
 		return err
 	}
@@ -198,20 +201,24 @@ func (sloMetricsProc *sloMetricsProcessor) getAttributeFromLogRecord(logRecord p
 	return attrVal.Str(), nil
 }
 
-func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) (string, error) {
+// Defaults to http if content_type attribute is missing or unknown.
+func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) string {
 	contentTypeVal, exists := logRecord.Attributes().Get("content_type")
 	if !exists {
-		return "", fmt.Errorf("content_type attribute missing")
+		return "http"
 	}
 	contentType := contentTypeVal.Str()
 
 	switch {
 	case strings.HasPrefix(contentType, "application/rpc2"):
-		return "rpc2", nil
+		return "rpc2"
 	case strings.HasPrefix(contentType, "application/grpc"):
-		return "grpc", nil
+		return "grpc"
 	default:
-		return "http", nil
+		sloMetricsProc.logger.Debug("Unknown content type, defaulting to http",
+			zap.String("content_type", contentType),
+		)
+		return "http"
 	}
 }
 
