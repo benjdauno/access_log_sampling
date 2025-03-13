@@ -13,6 +13,10 @@ exporters:
   - gomod:
       github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.119.0
 
+extensions:
+  - gomod:
+      github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.119.0
+
 processors:
   - gomod:
       github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.119.0

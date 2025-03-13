@@ -8,6 +8,7 @@ toolchain go1.22.12
 
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.119.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.119.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.119.0
 	go.opentelemetry.io/collector/component v0.119.0
@@ -104,6 +105,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.119.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.119.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.119.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.119.0 // indirect
