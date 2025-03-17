@@ -237,6 +237,10 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8m
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.119.0 h1:zQm1CkEuk7HjLNcXQ8WIH1t8WHiJDqIQUMjbTHWRFIY=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.119.0/go.mod h1:6Lo1g1yHyIubBggpk+ify0ORGI7Z0C4xCCpEIzyMXdY=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.119.0 h1:2rJGw7Du16sanQo64b2x6qDh2WkYTIB/k8ztaEp96hA=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.119.0/go.mod h1:lOeos0lj5TR84xGqXbE7jR4VQOOuY+c6YhU9Sk+Xpbc=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.119.0 h1:o1s1koCc7Rg2auZLhFc2Ja6Eo2rOCMHKZJptRwdhoTI=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.119.0/go.mod h1:8rSWjIfW9QDA3KHzdZIfGs+Na0HBEmKg2EMmMplK1X8=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.119.0 h1:3H9R5Ztc4ISphy+bRlHHExqtS04PBYi7Fptwl9XA52M=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.119.0/go.mod h1:txjr7nwuLZUBitwpU4G7EkZ3gyMBfI/4DXMJxX6NAtU=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.119.0 h1:Woc64WQAdBO7EhprsHXKC6zQY+GDtk+Ji3hT1s57Hj8=
