@@ -184,7 +184,10 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 }
 
 func (sloMetricsProc *sloMetricsProcessor) extractIstioAccessLogFromLogRecord(logRecord plog.LogRecord) (IstioAccessLog, error) {
-	endpointType := sloMetricsProc.determineEndpointType(logRecord)
+	endpointType, err := sloMetricsProc.determineEndpointType(logRecord)
+	if err != nil {
+		return IstioAccessLog{}, err
+	}
 
 	endpoint, err := sloMetricsProc.extractEndpoint(logRecord, endpointType)
 	if err != nil {
@@ -242,24 +245,26 @@ func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, metho
 }
 
 // Defaults to http if content_type attribute is missing or unknown.
-func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) string {
+func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) (string, error) {
 	contentTypeVal, exists := logRecord.Attributes().Get("content_type")
 	if !exists {
 		sloMetricsProc.logger.Debug("content_type attribute missing from log record", zap.Any("attributes", logRecord.Attributes().AsRaw()))
-		return "http"
+		return "", fmt.Errorf("content_type attribute missing from log record")
 	}
 	contentType := contentTypeVal.Str()
 
 	switch {
 	case strings.HasPrefix(contentType, "application/rpc2"):
-		return "rpc2"
+		return "rpc2", nil
 	case strings.HasPrefix(contentType, "application/grpc"):
-		return "grpc"
+		return "grpc", nil
+	case strings.HasPrefix(contentType, "application/json"):
+		return "http", nil
 	default:
 		sloMetricsProc.logger.Debug("Unknown content type, defaulting to http",
-			zap.String("content_type", contentType),
+			zap.Any("attributes", logRecord.Attributes().AsRaw()),
 		)
-		return "http"
+		return "http", nil
 	}
 }
 

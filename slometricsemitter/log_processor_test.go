@@ -266,7 +266,6 @@ func floatToStr(f float64) string {
 	return fmt.Sprintf("%.3f", f)
 }
 
-// TestEndpointTypeDetection tests the determineEndpointType function
 func TestEndpointTypeDetection(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -278,20 +277,30 @@ func TestEndpointTypeDetection(t *testing.T) {
 			name:         "HTTP content type",
 			contentType:  "application/json",
 			expectedType: "http",
+			shouldError:  false,
+		},
+		{
+			name:         "HTTP content type with charset",
+			contentType:  "application/json; charset=utf-8",
+			expectedType: "http",
+			shouldError:  false,
 		},
 		{
 			name:         "GRPC content type",
 			contentType:  "application/grpc",
 			expectedType: "grpc",
+			shouldError:  false,
 		},
 		{
 			name:         "RPC2 content type",
 			contentType:  "application/rpc2",
 			expectedType: "rpc2",
+			shouldError:  false,
 		},
 		{
 			name:         "Missing content type",
 			expectedType: "http",
+			shouldError:  true,
 		},
 	}
 
@@ -304,7 +313,11 @@ func TestEndpointTypeDetection(t *testing.T) {
 				lr.Attributes().PutStr("content_type", tc.contentType)
 			}
 
-			endpointType := proc.determineEndpointType(lr)
+			endpointType, err := proc.determineEndpointType(lr)
+			if tc.shouldError {
+				require.Error(t, err)
+				return
+			}
 			assert.Equal(t, tc.expectedType, endpointType)
 		})
 	}
