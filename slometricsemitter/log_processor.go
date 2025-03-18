@@ -20,7 +20,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// sloMetricsProcessor is a custom processor that fetches endpoint volumes from Prometheus.
+// sloMetricsProcessor is a custom processor reads SLO definitions from a yaml file
+// and processes logs to increment counters for latency breaches and requests.
 type sloMetricsProcessor struct {
 	host                 component.Host
 	cancel               context.CancelFunc
@@ -34,7 +35,14 @@ type sloMetricsProcessor struct {
 	environment          string // "dev", "stage", or "prod"
 }
 
-// Capabilities implements processor.Logs.
+type IstioAccessLog struct {
+	EndpointType string
+	Endpoint     string
+	StatusCode   int64
+	Method       string
+	Duration     float64
+}
+
 func (sloMetricsProc *sloMetricsProcessor) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
@@ -60,10 +68,19 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 		return err
 	}
 
-	// Set up internal otel telemetry
-	meter := sloMetricsProc.meterProvider.Meter("slo_metrics_processor")
+	sloMetricsProc.setupTelemetry()
 
-	// Initialize custom counters. Labels are added at increment time.
+	// TODO: Set up periodic fetching of SLO definitions
+	// go sloMetricsProc.refreshSLODefinitions(ctx, token)
+	return nil
+}
+
+func (sloMetricsProc *sloMetricsProcessor) setupTelemetry() error {
+	var err error
+
+	// Uses otel's metric sdk to expose metrics on the shared telemetry service
+	meter := sloMetricsProc.meterProvider.Meter("slo_metrics_processor")
+	// Initialize custom affirm SLO counters. For this sdk, labels are set at observation time.
 	sloMetricsProc.latencyBreachCounter, err = meter.Int64Counter(
 		"aff_otel_slo_latency_breaches_total",
 		metric.WithDescription("Number of latency SLO breaches per endpoint and status code"),
@@ -84,13 +101,11 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 		return err
 	}
 
-	// TODO: Set up periodic fetching of SLO definitions
-	// go sloMetricsProc.refreshSLODefinitions(ctx, token)
 	return nil
 }
 
 func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
-	sloMetricsProc.logger.Info("Processing logs batch",
+	sloMetricsProc.logger.Debug("Processing logs batch",
 		zap.Int("resourceLogsCount", ld.ResourceLogs().Len()))
 
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
@@ -99,6 +114,7 @@ func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld p
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
+
 				err := sloMetricsProc.processLog(ctx, logRecord)
 				if err != nil {
 					sloMetricsProc.logger.Warn("Failed to process latency breach", zap.Error(err))
@@ -110,70 +126,45 @@ func (sloMetricsProc *sloMetricsProcessor) ConsumeLogs(ctx context.Context, ld p
 		}
 	}
 
+	// Pass on unmodified logs to the next consumer
 	return sloMetricsProc.nextConsumer.ConsumeLogs(ctx, ld)
 }
 
 func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRecord plog.LogRecord) error {
-	endpointType := sloMetricsProc.determineEndpointType(logRecord)
-
-	endpoint, err := sloMetricsProc.extractEndpoint(logRecord, endpointType)
+	accessLog, err := sloMetricsProc.extractIstioAccessLogFromLogRecord(logRecord)
 	if err != nil {
 		return err
 	}
 
-	statusCodeVal, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "response_code")
-	if err != nil {
-		return err
-	}
-	statusCode, err := strconv.ParseInt(statusCodeVal, 10, 64)
-	if err != nil {
-		return err
-	}
-
-	method, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "method")
-	if err != nil {
-		return err
-	}
-
-	durationAttr, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "duration")
-	if err != nil {
-		return err
-	}
-	duration, err := strconv.ParseFloat(durationAttr, 64)
-	if err != nil {
-		return err
-	}
-
-	// Increment request counter
 	sloMetricsProc.requestCounter.Add(ctx, 1,
 		metric.WithAttributes(
-			attribute.String("endpoint", endpoint),
-			attribute.String("endpoint_type", endpointType),
-			attribute.Int64("status_code", statusCode),
-			attribute.String("method", method),
+			attribute.String("endpoint", accessLog.Endpoint),
+			attribute.String("endpoint_type", accessLog.EndpointType),
+			attribute.Int64("status_code", accessLog.StatusCode),
+			attribute.String("method", accessLog.Method),
 		),
 	)
 
-	objective, err := sloMetricsProc.getEndpointSLO(endpoint, method, endpointType)
+	objective, err := sloMetricsProc.getEndpointSLO(accessLog.Endpoint, accessLog.Method, accessLog.EndpointType)
 	if err != nil {
 		// No SLO found for endpoint, just debug log for now and skip processing
 		sloMetricsProc.logger.Debug("SLO not found for endpoint",
-			zap.String("endpoint", endpoint),
-			zap.String("method", method),
-			zap.String("endpoint_type", endpointType),
+			zap.String("endpoint", accessLog.Endpoint),
+			zap.String("method", accessLog.Method),
+			zap.String("endpoint_type", accessLog.EndpointType),
 		)
 		return nil
 	}
 
 	// Check for latency breaches, and increment breach counter for each quantile breached
 	for quantile, threshold := range objective.Latency {
-		if duration > threshold.Seconds() {
+		if accessLog.Duration > threshold.Seconds() {
 			sloMetricsProc.latencyBreachCounter.Add(ctx, 1,
 				metric.WithAttributes(
-					attribute.String("endpoint", endpoint),
-					attribute.Int64("status_code", statusCode),
-					attribute.String("endpoint_type", endpointType),
-					attribute.String("method", method),
+					attribute.String("endpoint", accessLog.Endpoint),
+					attribute.Int64("status_code", accessLog.StatusCode),
+					attribute.String("endpoint_type", accessLog.EndpointType),
+					attribute.String("method", accessLog.Method),
 					attribute.Float64("objective", threshold.Seconds()),
 					attribute.String("quantile", quantile),
 				),
@@ -182,93 +173,54 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 	}
 
 	sloMetricsProc.logger.Debug("Processed log",
-		zap.String("endpoint", endpoint),
-		zap.String("endpointType", endpointType),
-		zap.Int64("status_code", statusCode),
-		zap.String("method", method),
-		zap.String("duration", durationAttr),
+		zap.String("endpoint", accessLog.Endpoint),
+		zap.String("endpointType", accessLog.EndpointType),
+		zap.Int64("status_code", accessLog.StatusCode),
+		zap.String("method", accessLog.Method),
+		zap.Float64("duration", accessLog.Duration),
 	)
 
 	return nil
 }
 
-func (sloMetricsProc *sloMetricsProcessor) getAttributeFromLogRecord(logRecord plog.LogRecord, attribute string) (string, error) {
-	attrVal, exists := logRecord.Attributes().Get(attribute)
-	if !exists || attrVal.Str() == "" {
-		sloMetricsProc.logger.Warn(attribute + " attribute missing or empty from log record")
-		return "", fmt.Errorf(attribute + " attribute missing or empty from log record")
-	}
-	return attrVal.Str(), nil
-}
+func (sloMetricsProc *sloMetricsProcessor) extractIstioAccessLogFromLogRecord(logRecord plog.LogRecord) (IstioAccessLog, error) {
+	endpointType := sloMetricsProc.determineEndpointType(logRecord)
 
-// Defaults to http if content_type attribute is missing or unknown.
-func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) string {
-	contentTypeVal, exists := logRecord.Attributes().Get("content_type")
-	if !exists {
-		return "http"
-	}
-	contentType := contentTypeVal.Str()
-
-	switch {
-	case strings.HasPrefix(contentType, "application/rpc2"):
-		return "rpc2"
-	case strings.HasPrefix(contentType, "application/grpc"):
-		return "grpc"
-	default:
-		sloMetricsProc.logger.Debug("Unknown content type, defaulting to http",
-			zap.String("content_type", contentType),
-		)
-		return "http"
-	}
-}
-
-type EndpointSLOConfig struct {
-	Latency     map[string]time.Duration `yaml:"latency"`
-	SuccessRate float64                  `yaml:"success_rate"`
-}
-
-type SLOConfig struct {
-	SLOs map[string]map[string]EndpointSLOConfig `yaml:"slos"`
-}
-
-// Custom unmarshal for EndpointSLOConfig to convert duration strings to time.Duration.
-func (c *EndpointSLOConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// temporary struct to hold raw values
-	var raw struct {
-		Latency     map[string]string `yaml:"latency"`
-		SuccessRate float64           `yaml:"success_rate"`
-	}
-	if err := unmarshal(&raw); err != nil {
-		return err
-	}
-
-	c.Latency = make(map[string]time.Duration)
-	for quantile, durStr := range raw.Latency {
-		d, err := time.ParseDuration(durStr)
-		if err != nil {
-			return fmt.Errorf("failed to parse duration %q for quantile %s: %w", durStr, quantile, err)
-		}
-		c.Latency[quantile] = d
-	}
-	c.SuccessRate = raw.SuccessRate
-	return nil
-}
-
-func (sloMetricsProc *sloMetricsProcessor) readSLOConfigFile(sloConfigFile string) (SLOConfig, error) {
-	var sloConfig SLOConfig
-
-	f, err := os.ReadFile(sloConfigFile)
+	endpoint, err := sloMetricsProc.extractEndpoint(logRecord, endpointType)
 	if err != nil {
-		return SLOConfig{}, fmt.Errorf("failed to read slo_config_file at %q: %w", sloConfigFile, err)
+		return IstioAccessLog{}, err
 	}
 
-	// Uses custom UnmarshalYAML for EndpointSLOConfig
-	if err := yaml.Unmarshal(f, &sloConfig); err != nil {
-		return SLOConfig{}, err
+	statusCodeVal, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "response_code")
+	if err != nil {
+		return IstioAccessLog{}, err
 	}
-	sloMetricsProc.logger.Info("Read SLO config file", zap.Any("sloConfig", sloConfig))
+	statusCode, err := strconv.ParseInt(statusCodeVal, 10, 64)
+	if err != nil {
+		return IstioAccessLog{}, err
+	}
 
-	return sloConfig, nil
+	method, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "method")
+	if err != nil {
+		return IstioAccessLog{}, err
+	}
+
+	durationAttr, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "duration")
+	if err != nil {
+		return IstioAccessLog{}, err
+	}
+	duration, err := strconv.ParseFloat(durationAttr, 64)
+	if err != nil {
+		return IstioAccessLog{}, err
+	}
+
+	return IstioAccessLog{
+		EndpointType: endpointType,
+		Endpoint:     endpoint,
+		StatusCode:   statusCode,
+		Method:       method,
+		Duration:     duration,
+	}, nil
 }
 
 func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, method string, endpointType string) (EndpointSLOConfig, error) {
@@ -287,6 +239,28 @@ func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, metho
 		return EndpointSLOConfig{}, fmt.Errorf("SLO not found for endpoint: %s and method: %s", key, method)
 	}
 	return slo, nil
+}
+
+// Defaults to http if content_type attribute is missing or unknown.
+func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) string {
+	contentTypeVal, exists := logRecord.Attributes().Get("content_type")
+	if !exists {
+		sloMetricsProc.logger.Debug("content_type attribute missing from log record", zap.Any("attributes", logRecord.Attributes().AsRaw()))
+		return "http"
+	}
+	contentType := contentTypeVal.Str()
+
+	switch {
+	case strings.HasPrefix(contentType, "application/rpc2"):
+		return "rpc2"
+	case strings.HasPrefix(contentType, "application/grpc"):
+		return "grpc"
+	default:
+		sloMetricsProc.logger.Debug("Unknown content type, defaulting to http",
+			zap.String("content_type", contentType),
+		)
+		return "http"
+	}
 }
 
 func (sloMetricsProc *sloMetricsProcessor) extractEndpoint(logRecord plog.LogRecord, endpointType string) (string, error) {
@@ -313,7 +287,64 @@ func (sloMetricsProc *sloMetricsProcessor) extractEndpoint(logRecord plog.LogRec
 	}
 }
 
-// Shutdown gracefully shuts down the processor.
+func (sloMetricsProc *sloMetricsProcessor) getAttributeFromLogRecord(logRecord plog.LogRecord, attribute string) (string, error) {
+	attrVal, exists := logRecord.Attributes().Get(attribute)
+	if !exists || attrVal.Str() == "" {
+		sloMetricsProc.logger.Warn(attribute + " attribute missing or empty from log record")
+		return "", fmt.Errorf(attribute + " attribute missing or empty from log record")
+	}
+	return attrVal.Str(), nil
+}
+
+type EndpointSLOConfig struct {
+	Latency     map[string]time.Duration `yaml:"latency"`
+	SuccessRate float64                  `yaml:"success_rate"`
+}
+
+type SLOConfig struct {
+	SLOs map[string]map[string]EndpointSLOConfig `yaml:"slos"`
+}
+
+func (sloMetricsProc *sloMetricsProcessor) readSLOConfigFile(sloConfigFile string) (SLOConfig, error) {
+	var sloConfig SLOConfig
+
+	f, err := os.ReadFile(sloConfigFile)
+	if err != nil {
+		return SLOConfig{}, fmt.Errorf("failed to read slo_config_file at %q: %w", sloConfigFile, err)
+	}
+
+	// Uses custom UnmarshalYAML for EndpointSLOConfig
+	if err := yaml.Unmarshal(f, &sloConfig); err != nil {
+		return SLOConfig{}, err
+	}
+	sloMetricsProc.logger.Info("Read SLO config file", zap.Any("sloConfig", sloConfig))
+
+	return sloConfig, nil
+}
+
+// Custom unmarshal for EndpointSLOConfig to convert duration strings to time.Duration.
+func (c *EndpointSLOConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// temporary struct to hold raw values
+	var raw struct {
+		Latency     map[string]string `yaml:"latency"`
+		SuccessRate float64           `yaml:"success_rate"`
+	}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	c.Latency = make(map[string]time.Duration)
+	for quantile, durStr := range raw.Latency {
+		d, err := time.ParseDuration(durStr)
+		if err != nil {
+			return fmt.Errorf("failed to parse duration %q for quantile %s: %w", durStr, quantile, err)
+		}
+		c.Latency[quantile] = d
+	}
+	c.SuccessRate = raw.SuccessRate
+	return nil
+}
+
 func (sloMetricsProc *sloMetricsProcessor) Shutdown(ctx context.Context) error {
 	if sloMetricsProc.cancel != nil {
 		sloMetricsProc.cancel()
