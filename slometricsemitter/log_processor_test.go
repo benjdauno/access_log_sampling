@@ -252,6 +252,10 @@ slos:
 	require.NoError(t, proc.Shutdown(context.Background()))
 }
 
+func floatToStr(f float64) string {
+	return fmt.Sprintf("%.3f", f)
+}
+
 // TestSLOMetricsProcessorMissingAttributes ensures we get an error (and a warning) if required attributes are missing.
 func TestSLOMetricsProcessorMissingAttributes(t *testing.T) {
 	logger := zaptest.NewLogger(t)
@@ -262,45 +266,40 @@ func TestSLOMetricsProcessorMissingAttributes(t *testing.T) {
 	require.Error(t, err)
 }
 
-func floatToStr(f float64) string {
-	return fmt.Sprintf("%.3f", f)
-}
-
 func TestEndpointTypeDetection(t *testing.T) {
 	tests := []struct {
 		name         string
 		contentType  string
 		expectedType string
-		shouldError  bool
 	}{
 		{
 			name:         "HTTP content type",
 			contentType:  "application/json",
 			expectedType: "http",
-			shouldError:  false,
 		},
 		{
 			name:         "HTTP content type with charset",
 			contentType:  "application/json; charset=utf-8",
 			expectedType: "http",
-			shouldError:  false,
 		},
 		{
 			name:         "GRPC content type",
 			contentType:  "application/grpc",
 			expectedType: "grpc",
-			shouldError:  false,
 		},
 		{
 			name:         "RPC2 content type",
 			contentType:  "application/rpc2",
 			expectedType: "rpc2",
-			shouldError:  false,
 		},
 		{
 			name:         "Missing content type",
-			expectedType: "http",
-			shouldError:  true,
+			contentType:  "-",
+			expectedType: "unknown",
+		},
+		{
+			name:         "Missing content type",
+			expectedType: "unknown",
 		},
 	}
 
@@ -313,17 +312,12 @@ func TestEndpointTypeDetection(t *testing.T) {
 				lr.Attributes().PutStr("content_type", tc.contentType)
 			}
 
-			endpointType, err := proc.determineEndpointType(lr)
-			if tc.shouldError {
-				require.Error(t, err)
-				return
-			}
+			endpointType := proc.determineEndpointType(lr)
 			assert.Equal(t, tc.expectedType, endpointType)
 		})
 	}
 }
 
-// TestEndpointExtraction tests the extractEndpoint function
 func TestEndpointExtraction(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -347,6 +341,14 @@ func TestEndpointExtraction(t *testing.T) {
 				"path": "/service/method",
 			},
 			expectedPath: "/service/method",
+		},
+		{
+			name:         "Valid unknown endpoint type with endpoint",
+			endpointType: "unknown",
+			attributes: map[string]string{
+				"x_affirm_endpoint_name": "/some/unexpected/endpoint",
+			},
+			expectedPath: "/some/unexpected/endpoint",
 		},
 		{
 			name:         "Invalid gRPC path format",
@@ -392,7 +394,6 @@ func TestEndpointExtraction(t *testing.T) {
 	}
 }
 
-// TestSLOConfigParsing tests various SLO config parsing scenarios
 func TestSLOConfigParsing(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -136,6 +136,14 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 		return err
 	}
 
+	sloMetricsProc.logger.Debug("Processing log",
+		zap.String("endpoint", accessLog.Endpoint),
+		zap.String("endpointType", accessLog.EndpointType),
+		zap.Int64("status_code", accessLog.StatusCode),
+		zap.String("method", accessLog.Method),
+		zap.Float64("duration", accessLog.Duration),
+	)
+
 	sloMetricsProc.requestCounter.Add(ctx, 1,
 		metric.WithAttributes(
 			attribute.String("endpoint", accessLog.Endpoint),
@@ -148,11 +156,7 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 	objective, err := sloMetricsProc.getEndpointSLO(accessLog.Endpoint, accessLog.Method, accessLog.EndpointType)
 	if err != nil {
 		// No SLO found for endpoint, just debug log for now and skip processing
-		sloMetricsProc.logger.Debug("SLO not found for endpoint",
-			zap.String("endpoint", accessLog.Endpoint),
-			zap.String("method", accessLog.Method),
-			zap.String("endpoint_type", accessLog.EndpointType),
-		)
+		sloMetricsProc.logger.Debug("SLO not found for endpoint", zap.Any("accessLog", accessLog))
 		return nil
 	}
 
@@ -172,22 +176,11 @@ func (sloMetricsProc *sloMetricsProcessor) processLog(ctx context.Context, logRe
 		}
 	}
 
-	sloMetricsProc.logger.Debug("Processed log",
-		zap.String("endpoint", accessLog.Endpoint),
-		zap.String("endpointType", accessLog.EndpointType),
-		zap.Int64("status_code", accessLog.StatusCode),
-		zap.String("method", accessLog.Method),
-		zap.Float64("duration", accessLog.Duration),
-	)
-
 	return nil
 }
 
 func (sloMetricsProc *sloMetricsProcessor) extractIstioAccessLogFromLogRecord(logRecord plog.LogRecord) (IstioAccessLog, error) {
-	endpointType, err := sloMetricsProc.determineEndpointType(logRecord)
-	if err != nil {
-		return IstioAccessLog{}, err
-	}
+	endpointType := sloMetricsProc.determineEndpointType(logRecord)
 
 	endpoint, err := sloMetricsProc.extractEndpoint(logRecord, endpointType)
 	if err != nil {
@@ -237,6 +230,7 @@ func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, metho
 		return EndpointSLOConfig{}, fmt.Errorf("unknown endpoint type: %s", endpointType)
 	}
 
+	// Go doesn't panic when a non-existent endpointType key is attempted to be accessed
 	slo, exists := sloMetricsProc.sloConfig.SLOs[endpointType][key]
 	if !exists {
 		return EndpointSLOConfig{}, fmt.Errorf("SLO not found for endpoint: %s and method: %s", key, method)
@@ -244,57 +238,64 @@ func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, metho
 	return slo, nil
 }
 
-// Defaults to http if content_type attribute is missing or unknown.
-func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) (string, error) {
+func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) string {
 	contentTypeVal, exists := logRecord.Attributes().Get("content_type")
 	if !exists {
-		sloMetricsProc.logger.Debug("content_type attribute missing from log record", zap.Any("attributes", logRecord.Attributes().AsRaw()))
-		return "", fmt.Errorf("content_type attribute missing from log record")
+		sloMetricsProc.logger.Debug("content_type attribute missing from log record",
+			zap.Any("attributes", logRecord.Attributes().AsRaw()),
+		)
+		return "unknown"
 	}
 	contentType := contentTypeVal.Str()
 
 	switch {
 	case strings.HasPrefix(contentType, "application/rpc2"):
-		return "rpc2", nil
+		return "rpc2"
 	case strings.HasPrefix(contentType, "application/grpc"):
-		return "grpc", nil
+		return "grpc"
 	case strings.HasPrefix(contentType, "application/json"):
-		return "http", nil
+		return "http"
 	default:
-		sloMetricsProc.logger.Debug("Unknown content type, defaulting to http",
+		sloMetricsProc.logger.Debug("Could not determine endpoint type",
 			zap.Any("attributes", logRecord.Attributes().AsRaw()),
 		)
-		return "http", nil
+		return "unknown"
 	}
 }
 
 func (sloMetricsProc *sloMetricsProcessor) extractEndpoint(logRecord plog.LogRecord, endpointType string) (string, error) {
 	switch endpointType {
 	case "rpc2", "grpc":
-		pathVal, exists := logRecord.Attributes().Get("path")
-		if !exists || pathVal.Str() == "" {
+		path, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "path")
+		if err != nil {
 			return "", fmt.Errorf("path attribute missing or empty for RPC2/GRPC endpoint")
 		}
-		pathSegments := strings.Split(strings.TrimPrefix(pathVal.Str(), "/"), "/")
+		pathSegments := strings.Split(strings.TrimPrefix(path, "/"), "/")
 		if len(pathSegments) < 2 {
 			return "", fmt.Errorf("unable to parse endpoint from path")
 		}
 		// Reconstruct /service/method format
 		return "/" + pathSegments[0] + "/" + pathSegments[1], nil
 	case "http":
-		endpointNameVal, exists := logRecord.Attributes().Get("x_affirm_endpoint_name")
-		if !exists || endpointNameVal.Str() == "" || endpointNameVal.Str() == "-" {
-			return "", fmt.Errorf("x_affirm_endpoint_name attribute missing or invalid for HTTP endpoint")
+		endpointName, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "x_affirm_endpoint_name")
+		if err != nil {
+			return "", fmt.Errorf("x_affirm_endpoint_name attribute missing or empty for HTTP endpoint")
 		}
-		return endpointNameVal.Str(), nil
+		return endpointName, nil
+	case "unknown":
+		endpointName, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "x_affirm_endpoint_name")
+		if err != nil {
+			return "", fmt.Errorf("x_affirm_endpoint_name attribute missing or empty for log with endpoint type unknown")
+		}
+		return endpointName, nil
 	default:
-		return "", fmt.Errorf("unknown endpoint type: %s", endpointType)
+		return "", fmt.Errorf("could not extract endpoint name with endpoint type: %s", endpointType)
 	}
 }
 
 func (sloMetricsProc *sloMetricsProcessor) getAttributeFromLogRecord(logRecord plog.LogRecord, attribute string) (string, error) {
 	attrVal, exists := logRecord.Attributes().Get(attribute)
-	if !exists || attrVal.Str() == "" {
+	if !exists || attrVal.Str() == "" || attrVal.Str() == "-" {
 		sloMetricsProc.logger.Warn(attribute + " attribute missing or empty from log record")
 		return "", fmt.Errorf(attribute + " attribute missing or empty from log record")
 	}
