@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"bytes"
+	"io"
 
 	"os"
 	"time"
@@ -18,6 +20,11 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // sloMetricsProcessor is a custom processor that fetches endpoint volumes from Prometheus.
@@ -39,6 +46,41 @@ func (sloMetricsProc *sloMetricsProcessor) Capabilities() consumer.Capabilities 
 	return consumer.Capabilities{MutatesData: false}
 }
 
+// FetchSLOConfigFromS3 fetches the SLO config file from S3 and writes it to the specified path
+func (sloMetricsProc *sloMetricsProcessor) FetchSLOConfigFromS3(ctx context.Context, bucketName, key, localPath string) error {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1")) // Replace with actual region after testing
+
+	s3Client := s3.NewFromConfig(cfg)
+
+	// Get the object from S3
+	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		sloMetricsProc.logger.Error("Failed to fetch file from S3", zap.Error(err))
+		return err
+	}
+	defer output.Body.Close()
+
+	// Read the S3 object content
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, output.Body)
+	if err != nil {
+		sloMetricsProc.logger.Error("Failed to read S3 object content", zap.Error(err))
+		return err
+	}
+
+	// Write the file locally
+	err = os.WriteFile(localPath, buf.Bytes(), 0644)
+	if err != nil {
+		sloMetricsProc.logger.Error("Failed to write SLO config file", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
 // Overwriting ctx produces a warning, in the vscode go linter, but this is the recommendation from OTEL, so until otherwise indicated by OTEL docs,
 // Please leave the ctx manipulation as is.
 func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host component.Host) error {
@@ -49,13 +91,42 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 
 	sloMetricsProc.logger.Info("Starting log processor with config", zap.String("sloConfigFile", sloMetricsProc.config.SLOConfigFile))
 
+	// Fetch SLO config initially
+	bucketName := "affirm-stage-logs"
+	key := "logs/slo/slo.yaml"
+
+	localPath := sloMetricsProc.config.SLOConfigFile
+
 	// Pull SLO config, at this point it should be a valid yaml file
-	var err error
-	sloMetricsProc.sloConfig, err = sloMetricsProc.readSLOConfigFile(sloMetricsProc.config.SLOConfigFile)
+	err := sloMetricsProc.FetchSLOConfigFromS3(ctx, bucketName, key, localPath)
 	if err != nil {
-		sloMetricsProc.logger.Error("Failed to read slo yaml file", zap.Error(err))
+		sloMetricsProc.logger.Error("Failed to fetch initial SLO config", zap.Error(err))
 		return err
 	}
+
+	// Start periodic refresh every hour
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := sloMetricsProc.FetchSLOConfigFromS3(ctx, bucketName, key, localPath)
+				if err != nil {
+					sloMetricsProc.logger.Error("Failed to refresh SLO config from S3", zap.Error(err))
+				} else {
+					// Reload the SLO configuration after fetching
+					sloMetricsProc.sloConfig, err = sloMetricsProc.readSLOConfigFile(localPath)
+					if err != nil {
+						sloMetricsProc.logger.Error("Failed to reload SLO config file", zap.Error(err))
+					}
+				}
+			}
+		}
+	}()
 
 	// Set up internal otel telemetry
 	meter := sloMetricsProc.meterProvider.Meter("slo_metrics_processor")
@@ -248,6 +319,7 @@ func (c *EndpointSLOConfig) UnmarshalYAML(unmarshal func(interface{}) error) err
 }
 
 func (sloMetricsProc *sloMetricsProcessor) readSLOConfigFile(sloConfigFile string) (SLOConfig, error) {
+	sloMetricsProc.logger.Error("Inside function readSLOConfigFile")
 	var sloConfig SLOConfig
 
 	f, err := os.ReadFile(sloConfigFile)
