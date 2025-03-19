@@ -242,9 +242,6 @@ func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, metho
 func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) string {
 	contentType, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "content_type")
 	if err != nil {
-		sloMetricsProc.logger.Debug("content_type attribute missing/empty from log record",
-			zap.Any("attributes", logRecord.Attributes().AsRaw()),
-		)
 		return "http"
 	}
 
@@ -289,7 +286,9 @@ func (sloMetricsProc *sloMetricsProcessor) extractEndpoint(logRecord plog.LogRec
 func (sloMetricsProc *sloMetricsProcessor) getAttributeFromLogRecord(logRecord plog.LogRecord, attribute string) (string, error) {
 	attrVal, exists := logRecord.Attributes().Get(attribute)
 	if !exists || attrVal.Str() == "" || attrVal.Str() == "-" {
-		sloMetricsProc.logger.Warn(attribute + " attribute missing or empty from log record")
+		sloMetricsProc.logger.Debug(attribute+" attribute missing or empty from log record",
+			zap.Any("attributes", logRecord.Attributes().AsRaw()),
+		)
 		return "", fmt.Errorf(attribute + " attribute missing or empty from log record")
 	}
 	return attrVal.Str(), nil

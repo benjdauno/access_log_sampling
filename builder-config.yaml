@@ -3,7 +3,7 @@ dist:
   name: affirm-otelcol
   description: OTEL collector with custom components developped at Affirm
   output_path: ./affirm-otelcol
-  version: 0.0.14
+  version: 0.0.15
 
 exporters:
   - gomod:

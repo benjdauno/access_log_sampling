@@ -20,7 +20,7 @@ func main() {
 	info := component.BuildInfo{
 		Command:     "affirm-otelcol",
 		Description: "OTEL collector with custom components developped at Affirm",
-		Version:     "0.0.14",
+		Version:     "0.0.15",
 	}
 
 	set := otelcol.CollectorSettings{
