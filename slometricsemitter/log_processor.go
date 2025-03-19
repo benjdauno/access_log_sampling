@@ -238,28 +238,27 @@ func (sloMetricsProc *sloMetricsProcessor) getEndpointSLO(endpoint string, metho
 	return slo, nil
 }
 
+// We don't strongly set content-type for our endpoints, so this generally defaults to http.
 func (sloMetricsProc *sloMetricsProcessor) determineEndpointType(logRecord plog.LogRecord) string {
-	contentTypeVal, exists := logRecord.Attributes().Get("content_type")
-	if !exists {
-		sloMetricsProc.logger.Debug("content_type attribute missing from log record",
+	contentType, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "content_type")
+	if err != nil {
+		sloMetricsProc.logger.Debug("content_type attribute missing/empty from log record",
 			zap.Any("attributes", logRecord.Attributes().AsRaw()),
 		)
-		return "unknown"
-	}
-	contentType := contentTypeVal.Str()
-
-	switch {
-	case strings.HasPrefix(contentType, "application/rpc2"):
-		return "rpc2"
-	case strings.HasPrefix(contentType, "application/grpc"):
-		return "grpc"
-	case strings.HasPrefix(contentType, "application/json"):
 		return "http"
-	default:
+	}
+
+	if strings.HasPrefix(contentType, "application/rpc2") {
+		return "rpc2"
+	} else if strings.HasPrefix(contentType, "application/grpc") {
+		return "grpc"
+	} else if strings.HasPrefix(contentType, "application/json") {
+		return "http"
+	} else {
 		sloMetricsProc.logger.Debug("Could not determine endpoint type",
 			zap.Any("attributes", logRecord.Attributes().AsRaw()),
 		)
-		return "unknown"
+		return "http"
 	}
 }
 
@@ -280,12 +279,6 @@ func (sloMetricsProc *sloMetricsProcessor) extractEndpoint(logRecord plog.LogRec
 		endpointName, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "x_affirm_endpoint_name")
 		if err != nil {
 			return "", fmt.Errorf("x_affirm_endpoint_name attribute missing or empty for HTTP endpoint")
-		}
-		return endpointName, nil
-	case "unknown":
-		endpointName, err := sloMetricsProc.getAttributeFromLogRecord(logRecord, "x_affirm_endpoint_name")
-		if err != nil {
-			return "", fmt.Errorf("x_affirm_endpoint_name attribute missing or empty for log with endpoint type unknown")
 		}
 		return endpointName, nil
 	default:

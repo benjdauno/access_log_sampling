@@ -294,12 +294,12 @@ func TestEndpointTypeDetection(t *testing.T) {
 		},
 		{
 			name:         "Missing content type",
-			contentType:  "-",
-			expectedType: "unknown",
+			expectedType: "http",
 		},
 		{
-			name:         "Missing content type",
-			expectedType: "unknown",
+			name:         "Unknown content type",
+			contentType:  "unknown/content-type",
+			expectedType: "http",
 		},
 	}
 
@@ -343,14 +343,6 @@ func TestEndpointExtraction(t *testing.T) {
 			expectedPath: "/service/method",
 		},
 		{
-			name:         "Valid unknown endpoint type with endpoint",
-			endpointType: "unknown",
-			attributes: map[string]string{
-				"x_affirm_endpoint_name": "/some/unexpected/endpoint",
-			},
-			expectedPath: "/some/unexpected/endpoint",
-		},
-		{
 			name:         "Invalid gRPC path format",
 			endpointType: "grpc",
 			attributes: map[string]string{
@@ -368,7 +360,7 @@ func TestEndpointExtraction(t *testing.T) {
 		},
 		{
 			name:         "Unknown endpoint type",
-			endpointType: "unknown",
+			endpointType: "unexpected",
 			shouldError:  true,
 		},
 	}
