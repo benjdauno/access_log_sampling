@@ -1,5 +1,6 @@
 services:
   nginx:
+  # need to add <ecr-account-#>/library/nginx
     image: nginx:latest
     container_name: nginx
     ports:
@@ -50,7 +51,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   otel-collector:
-    image: affirm-otelcol:0.0.12
+    image: affirm-otelcol:0.0.13
     container_name: otel-collector
     deploy:
       resources:
