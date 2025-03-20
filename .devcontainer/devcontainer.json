@@ -1,16 +1,21 @@
 {
   "name": "OpenTelemetry Collector Dev",
   "mounts": [
-    "source=${localEnv:HOME}/workspace/access_log_sampling/dev_tooling,target=/dev_tooling,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/access_log_sampling/dev_tooling,target=/dev_tooling,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.aws,target=/root/.aws,type=bind"
   ],
-  "remoteEnv": {"MOUNT_HOME":"${localEnv:HOME}"},
+  "remoteEnv": {
+    "MOUNT_HOME": "${localEnv:HOME}",
+    "AWS_PROFILE": "affirm-stage"
+  },
   "build": {
     "dockerfile": "Dockerfile"
   },
   "runArgs": ["--network=host"],
 
   "features": {
-    "ghcr.io/devcontainers/features/docker-from-docker:1": {}
+    "ghcr.io/devcontainers/features/docker-from-docker:1": {},
+    "ghcr.io/devcontainers/features/aws-cli:1": {}
   },
   "remoteUser": "root",
   "customizations": {
