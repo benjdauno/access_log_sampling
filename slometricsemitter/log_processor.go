@@ -222,7 +222,7 @@ func (sloMetricsProc *sloMetricsProcessor) startPeriodicSLOConfigRefresh(ctx con
 func (sloMetricsProc *sloMetricsProcessor) startPeriodicRefreshLogic(ctx context.Context, bucketName, httpLocalPath, rpc2LocalPath string) {
 
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
 		for {
