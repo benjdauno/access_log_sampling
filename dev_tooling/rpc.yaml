@@ -1,7 +1,0 @@
-# Sample file for testing SLO metrics with OpenTelemetry Collector
-slos:
-  rpc2:
-    /affirm.members.service.apis.api_v1/get_user_locale_v1:
-      latency:
-        p99: 10s
-      success_rate: 99.99
