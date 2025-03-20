@@ -15,6 +15,8 @@ TELEMETRYGEN := /go/bin/telemetrygen
 # Default target: Build the entire project
 all: collector binary image
 
+all_amd64: collector binary_amd64 image
+
 # Build the OpenTelemetry Collector components using ocb
 collector:
 	@echo "Building OpenTelemetry Collector components..."
@@ -26,15 +28,22 @@ binary:
 	@echo "Building the binary..."
 	cd $(BUILD_DIR) && CGO_ENABLED=0 $(GO) build -o ../bin
 
+# Build binary for running in k8s
+binary_amd64:
+	@echo "Building the binary..."
+	cd $(BUILD_DIR) && CGO_ENABLED=0 GOARCH=amd64 GOOS=linux $(GO) build -o ../bin
+
 # Build the Docker image
 image:
 	@echo "Building the Docker image..."
 	$(DOCKER) build -t $(DOCKER_IMAGE) -f $(DOCKERFILE) .
 
+# Run collector with volume sampler config
 run:
 	@echo "Running binary..."
 	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/volume-sampler-otel-config.yaml
 
+# Run collector with SLO metrics config
 run_slo:
 	@echo "Running binary..."
 	./bin/$(COLLECTOR_NAME) --config ./dev_tooling/slo-metrics-otel-config.yaml
@@ -61,16 +70,16 @@ gen-logs:
 gen-slo-logs:
 	@echo "Generating SLO-specific log traffic with telemetrygen..."
 	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"http\" \
-	--telemetry-attributes x_affirm_endpoint_name=\"/api/pf/authentication/v1/\" --telemetry-attributes status_code=\"200\" \
+	--telemetry-attributes x_affirm_endpoint_name=\"/api/pf/authentication/v1/\" --telemetry-attributes response_code=\"200\" \
 	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
 	
 	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"http\" \
-	--telemetry-attributes x_affirm_endpoint_name=\"/non-existant\" --telemetry-attributes status_code=\"200\" \
+	--telemetry-attributes x_affirm_endpoint_name=\"/non-existant\" --telemetry-attributes response_code=\"200\" \
 	--telemetry-attributes method=\"POST\" --telemetry-attributes duration=\"123\"
 	
 	$(TELEMETRYGEN) logs --logs 1 --otlp-insecure --telemetry-attributes content_type=\"application/rpc2\" \
 	--telemetry-attributes path=\"/affirm.members.service.apis.api_v1/get_user_locale_v1\" \
-	--telemetry-attributes status_code=\"200\" --telemetry-attributes method=\"POST\" \
+	--telemetry-attributes response_code=\"200\" --telemetry-attributes method=\"POST\" \
 	--telemetry-attributes duration=\"456\"
 
 # Read messages from Kafka topic
