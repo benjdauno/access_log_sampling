@@ -161,10 +161,6 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	}
 	httpLocalPath := sloMetricsProc.config.HTTPConfigFile
 	rpc2LocalPath := sloMetricsProc.config.RPC2ConfigFile
-	sloMetricsProc.logger.Info("Starting log processor with config and log level",
-		zap.String("sloConfigFile", sloMetricsProc.config.SLOConfigFile),
-		zap.String("logLevel", sloMetricsProc.config.LogLevel),
-	)
 
 	// Pull SLO config, at this point it should be a valid yaml file
 	err := sloMetricsProc.FetchSLOConfigFromS3(ctx, bucketName, httpLocalPath, rpc2LocalPath)
@@ -180,7 +176,6 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 
 
 	// Set up internal otel telemetry
-	meter := sloMetricsProc.meterProvider.Meter("slo_metrics_processor")
 	sloMetricsProc.setupTelemetry()
 
 
