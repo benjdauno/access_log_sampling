@@ -1,0 +1,683 @@
+slos:
+  http:
+    POST /api/pf/repayment/v1/<flow_ari>/disable_autopay:
+      latency:
+        p99: 3s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/confirm_option:
+      latency:
+        p99: 3s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_email_collection:
+      latency:
+        p99: 3s
+      success_rate: 99.99
+    POST /api/pf/proactive_prequal/v1/:
+      latency:
+        p99: 3s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_unfreeze_credit_report:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/back_to_phone_number:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_ssn_four:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    OPTIONS /api/pf/merchant_disputes/v1/:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/process_plaid_exit:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/edit_address_confirmation:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/prequal/v1/<flow_ari>/confirm:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/initiate_single_payment:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/anywhere_prequal/v1/<flow_ari>/poll_underwriting:
+      latency:
+        p99: 2s
+        p50: 0.60s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_address_confirmation:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/confirm_autopay:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_purchase_amount:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    OPTIONS /api/pf/phone_change/v1/:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_kba_v2:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/submit_ssn:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/resend_phone_pin:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/merchant_disputes/v1/<flow_ari>/submit_attempt:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/edit_email_link:
+      latency:
+        p99: 1.25s
+        p50: 0.25s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_onfido:
+      latency:
+        p99: 1s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_passkey_authentication:
+      latency:
+        p99: 1s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/resend_email_pin:
+      latency:
+        p99: 1s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/prequal/v1/:
+      latency:
+        p99: 1s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/add_card:
+      latency:
+        p99: 1s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/poll_onfido:
+      latency:
+        p99: 1s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/merchant_disputes/v1/evidence_dispute_details:
+      latency:
+        p99: 1s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/initialize_unfreeze_credit_report:
+      latency:
+        p99: 2.30s
+        p50: 0.70s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_pii_confirmation:
+      latency:
+        p99: 2.30s
+        p50: 0.70s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/back:
+      latency:
+        p99: 2.30s
+        p50: 0.70s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/back:
+      latency:
+        p99: 2.30s
+        p50: 0.70s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_signup:
+      latency:
+        p99: 3.480s
+        p50: 1.507s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_know_your_registered_business:
+      latency:
+        p99: 3.480s
+        p50: 1.507s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_full_ssn_and_address:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_signup_v2:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/start_idv:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    OPTIONS /api/pf/repayment/v1/:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_ssn_last_four:
+      latency:
+        p99: 5.084s
+        p50: 1.522s
+      success_rate: 99.99
+    POST /api/pf/financing/v1/preview:
+      latency:
+        p99: 5.084s
+        p50: 1.522s
+      success_rate: 99.99
+    POST /api/pf/anywhere_prequal/v1/:
+      latency:
+        p99: 5.084s
+        p50: 1.522s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/resend_email_pin:
+      latency:
+        p99: 5.084s
+        p50: 1.522s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/skip_email_link:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/back:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_onfido:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/edit_address_confirmation:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_full_ssn_and_address:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/confirm_single_payment:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/back:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/select_term:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/launch_plaid:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/start_idv_info_with_back:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/resend_email_link:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/initialize_unfreeze_credit_report:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/merchant_disputes/v1/<flow_ari>/submit_details:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/skip_single_payment:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_phone_number:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_plaid_success:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/edit_email_link:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/submit_proposed_phone_number:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/anywhere_prequal/v1/<flow_ari>/start_underwriting:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_ssn4:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/submit_kba_answers:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/submit_phone_pin:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/poll_unfreeze_credit_report:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_onfido:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/initiate_bulk_autopay_edit:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_disclosures_and_loan:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/submit_onfido:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/process_plaid_success:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/merchant_disputes/v1/:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/prequal/v1/<flow_ari>/poll_underwriting:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_cra_report_ready:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/resend_email_link:
+      latency:
+        p99: 1.30s
+        p50: 0.30s
+      success_rate: 99.99
+    OPTIONS /api/pf/authentication/v1/:
+      latency:
+        p99: 1.30s
+        p50: 0.30s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/initiate_bulk_autopay_enable:
+      latency:
+        p99: 1.30s
+        p50: 0.30s
+      success_rate: 99.99
+    POST /api/pf/prequal/v1/<flow_ari>/start_underwriting:
+      latency:
+        p99: 1.30s
+        p50: 0.30s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_email_verification:
+      latency:
+        p99: 1.30s
+        p50: 0.30s
+      success_rate: 99.99
+    POST /api/pf/anywhere_prequal/v1/<flow_ari>/check_prequal:
+      latency:
+        p99: 1.30s
+        p50: 0.30s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/resend_sms_link:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/submit_payment:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/confirm_loan:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_income:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_physical_id:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/create_apple_pay_merchant_session:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/confirm_bulk_autopay:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/confirm_ach_manual:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/launch_plaid:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_plaid_cra_exit:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_know_your_business:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/merchant_disputes/v1/<flow_ari>/issue_refund:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/confirm_card:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/close:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/initiate_autopay:
+      latency:
+        p99: 0.70s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_pii_confirmation:
+      latency:
+        p99: 1.50s
+        p50: 0.35s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/start_underwriting:
+      latency:
+        p99: 2.65s
+        p50: 0.29s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/initiate_anywhere:
+      latency:
+        p99: 2.65s
+        p50: 0.29s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_underwriting:
+      latency:
+        p99: 7.015s
+        p50: 3.75s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/launch_plaid_for_cra:
+      latency:
+        p99: 7.015s
+        p50: 3.75s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/poll:
+      latency:
+        p99: 7.015s
+        p50: 3.75s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_email_update:
+      latency:
+        p99: 7.015s
+        p50: 3.75s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/confirm_term:
+      latency:
+        p99: 7.015s
+        p50: 3.75s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/initiate_add_ach_manual:
+      latency:
+        p99: 7.015s
+        p50: 3.75s
+      success_rate: 99.99
+    POST /api/pf/prequal/v1/<flow_ari>/skip:
+      latency:
+        p99: 7.015s
+        p50: 3.75s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/:
+      latency:
+        p99: 0.61s
+        p50: 0.18s
+      success_rate: 99.99
+    OPTIONS /api/pf/loan_mod/v1/:
+      latency:
+        p99: 0.61s
+        p50: 0.18s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/review_option:
+      latency:
+        p99: 0.61s
+        p50: 0.18s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_email_link:
+      latency:
+        p99: 1.50s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/prequal/v1/<flow_ari>/identify_user:
+      latency:
+        p99: 1.50s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/back:
+      latency:
+        p99: 1.50s
+        p50: 0.15s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_email_pin:
+      latency:
+        p99: 1.925s
+        p50: 0.834s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_loan:
+      latency:
+        p99: 1.925s
+        p50: 0.834s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_ssn_last_four_and_address:
+      latency:
+        p99: 9.00s
+        p50: 4.500s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_disclosures:
+      latency:
+        p99: 9.00s
+        p50: 4.500s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/poll_email_link:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/submit_email_pin:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/merchant_disputes/v1/<flow_ari>/submit_evidence:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/skip_email_link:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/select_option:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/submit_plaid_exit:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/merchant_disputes/v1/<flow_ari>/create_dispute:
+      latency:
+        p99: 0.488s
+        p50: 0.134s
+      success_rate: 99.99
+    POST /api/pf/authentication/v1/<flow_ari>/submit_phone_pin:
+      latency:
+        p99: 1.833s
+        p50: 0.561s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/submit_payment_agent:
+      latency:
+        p99: 1.833s
+        p50: 0.561s
+      success_rate: 99.99
+    POST /api/pf/terms/v1/<flow_ari>/poll_sms_link:
+      latency:
+        p99: 0.700s
+        p50: 0.200s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/:
+      latency:
+        p99: 5.246s
+        p50: 2.085s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_kba:
+      latency:
+        p99: 5.246s
+        p50: 2.085s
+      success_rate: 99.99
+    POST /api/pf/loan_mod/v1/<flow_ari>/submit_eligibility:
+      latency:
+        p99: 5.246s
+        p50: 2.085s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/submit_address_confirmation:
+      latency:
+        p99: 5.545s
+        p50: 2.234s
+      success_rate: 99.99
+    POST /api/pf/phone_change/v1/<flow_ari>/resend_phone_pin:
+      latency:
+        p99: 5.545s
+        p50: 2.234s
+      success_rate: 99.99
+    POST /api/pf/identity/v1/<flow_ari>/poll_onfido:
+      latency:
+        p99: 5.545s
+        p50: 2.234s
+      success_rate: 99.99
+    POST /api/pf/repayment/v1/<flow_ari>/confirm_single_payment:
+      latency:
+        p99: 5.545s
+        p50: 2.234s
+      success_rate: 99.99
+    POST /api/pf/anywhere_prequal/v1/<flow_ari>/submit_income:
+      latency:
+        p99: 5.545s
+        p50: 2.234s
+      success_rate: 99.99

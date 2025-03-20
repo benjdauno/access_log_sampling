@@ -11,7 +11,8 @@ processors:
     log_level: debug
     prometheus_url: https://affirm.chronosphere.io/data/metrics
   slometricsemitter:
-    slo_config_file: /workspaces/access_log_sampling/dev_tooling/slo.yaml
+    http_slo_config_file: /workspaces/access_log_sampling/dev_tooling/http.yaml
+    rpc2_slo_config_file: /workspaces/access_log_sampling/dev_tooling/rpc.yaml
     environment: dev
     log_level: debug
 
