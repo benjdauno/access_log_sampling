@@ -276,7 +276,7 @@ func (sloMetricsProc *sloMetricsProcessor) reloadAndMergeSLOConfig() error {
 
 	// If sloConfig is identical, avoid redundant updates
 	if sloMetricsProc.hashConfig(sloMetricsProc.sloConfig) == sloMetricsProc.hashConfig(sloMetricsProc.mergeSLOConfigs(httpConfig, rpc2Config)) {
-		sloMetricsProc.logger.Error("No changes detected, skipping config update.")
+		sloMetricsProc.logger.Info("No changes detected, skipping config update.")
 		return nil
 	}
 
