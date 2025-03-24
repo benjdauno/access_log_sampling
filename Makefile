@@ -1,6 +1,6 @@
 # Variables
 COLLECTOR_NAME := affirm-otelcol
-DOCKER_IMAGE := affirm-otelcol:0.0.16-alpha-1
+DOCKER_IMAGE := affirm-otelcol:0.0.16
 DOCKERFILE := Dockerfile
 BUILD_DIR := ./affirm-otelcol
 
@@ -36,7 +36,7 @@ binary_amd64:
 # Build the Docker image
 image:
 	@echo "Building the Docker image..."
-	$(DOCKER) build -t $(DOCKER_IMAGE) -f $(DOCKERFILE) .
+	$(DOCKER) build --platform linux/amd64 -t $(DOCKER_IMAGE) -f $(DOCKERFILE) .
 
 # Run collector with volume sampler config
 run:

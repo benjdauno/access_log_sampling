@@ -3,13 +3,15 @@ package slometricsemitter
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
-	"reflect"
 	"strconv"
 	"strings"
 
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -72,12 +74,13 @@ func (sloMetricsProc *sloMetricsProcessor) FetchSLOConfigFromS3(ctx context.Cont
 
 	s3Client := s3.NewFromConfig(awsConfig)
 
+
 	var wg sync.WaitGroup
 	errChan := make(chan error, 2) // Buffer size of 2 to prevent blocking
 
 	// S3 bucket keys
-	httpS3Key := "slos/http.yaml"
-	rpc2S3Key := "slos/rpc.yaml"
+	httpS3Key := "slos/slo_master_http.yaml"
+	rpc2S3Key := "slos/slo_master_rpc.yaml"
 
 	// Fetch HTTP SLO config in a separate goroutine
 	wg.Add(1)
@@ -128,7 +131,7 @@ func (sloMetricsProc *sloMetricsProcessor) fetchAndWriteS3FileToLocal(ctx contex
 		sloMetricsProc.logger.Error("Failed to read S3 object content", zap.String("key", key), zap.Error(err))
 		return err
 	}
-
+	
 	err = os.WriteFile(localPath, buf.Bytes(), 0644)
 	if err != nil {
 		sloMetricsProc.logger.Error("Failed to write SLO config file", zap.String("path", localPath), zap.Error(err))
@@ -159,8 +162,9 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 		// Set a default bucket name if S3_BUCKET is not set in the environment
 		bucketName = "affirm-prod-ops"
 	}
-	httpLocalPath := "./http.yaml"
-	rpc2LocalPath := "./rpc2.yaml"
+
+	httpLocalPath := "/tmp/slo_configs/slo_master_http.yaml"
+	rpc2LocalPath := "/tmp/slo_configs/slo_master_rpc.yaml"
 
 	// Pull SLO config, at this point it should be a valid yaml file
 	err := sloMetricsProc.FetchSLOConfigFromS3(ctx, bucketName, httpLocalPath, rpc2LocalPath)
@@ -172,7 +176,7 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	
 	// Start periodic refresh every hour
 	
-	go sloMetricsProc.startPeriodicRefreshLogic(ctx, bucketName, httpLocalPath, rpc2LocalPath)
+	go sloMetricsProc.startPeriodicRefresh(ctx, bucketName, httpLocalPath, rpc2LocalPath)
 
 
 	// Set up internal otel telemetry
@@ -212,34 +216,30 @@ func (sloMetricsProc *sloMetricsProcessor) setupTelemetry() error {
 }
 
 
-func (sloMetricsProc *sloMetricsProcessor) startPeriodicRefreshLogic(ctx context.Context, bucketName, httpLocalPath, rpc2LocalPath string) {
+func (sloMetricsProc *sloMetricsProcessor) startPeriodicRefresh(ctx context.Context, bucketName, httpLocalPath, rpc2LocalPath string) {
+	sloMetricsProc.logger.Info("Refreshing the slo config files")
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
 
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-
-				// Fetch latest SLO configs from S3
-				err := sloMetricsProc.FetchSLOConfigFromS3(ctx, bucketName, httpLocalPath, rpc2LocalPath)
-				if err != nil {
-					sloMetricsProc.logger.Error("Failed to refresh SLO config from S3", zap.Error(err))
-					continue
-				}
-				
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := sloMetricsProc.FetchSLOConfigFromS3(ctx, bucketName, httpLocalPath, rpc2LocalPath)
+			if err != nil {
+				sloMetricsProc.logger.Error("Failed to refresh SLO config from S3", zap.Error(err))
+				continue
 			}
 		}
-	}()
+	}
 }
+
 
 func (sloMetricsProc *sloMetricsProcessor) reloadAndMergeSLOConfig() error {
 
-	httpLocalPath := "./http.yaml"
-	rpc2LocalPath := "./rpc2.yaml"
+	httpLocalPath := "/tmp/slo_configs/slo_master_http.yaml"
+	rpc2LocalPath := "/tmp/slo_configs/slo_master_rpc.yaml"
 
 	// Read HTTP SLO config
 	httpConfig, err := sloMetricsProc.readSLOConfigFile(httpLocalPath)
@@ -260,7 +260,7 @@ func (sloMetricsProc *sloMetricsProcessor) reloadAndMergeSLOConfig() error {
 	defer sloMetricsProc.Unlock()
 
 	// If sloConfig is identical, avoid redundant updates
-	if reflect.DeepEqual(sloMetricsProc.sloConfig, sloMetricsProc.mergeSLOConfigs(httpConfig, rpc2Config)) {
+	if sloMetricsProc.hashConfig(sloMetricsProc.sloConfig) == sloMetricsProc.hashConfig(sloMetricsProc.mergeSLOConfigs(httpConfig, rpc2Config)) {
 		sloMetricsProc.logger.Error("No changes detected, skipping config update.")
 		return nil
 	}
@@ -270,6 +270,11 @@ func (sloMetricsProc *sloMetricsProcessor) reloadAndMergeSLOConfig() error {
 	return nil
 }
 
+func(sloMetricsProc *sloMetricsProcessor) hashConfig(config interface{}) string {
+    b, _ := json.Marshal(config) // Serialize to JSON
+    sum := sha256.Sum256(b)      // Compute SHA-256 hash
+    return fmt.Sprintf("%x", sum)
+}
 
 func (sloMetricsProc *sloMetricsProcessor) mergeSLOConfigs(httpConfig, rpc2Config SLOConfig) SLOConfig {
 
@@ -291,6 +296,14 @@ func (sloMetricsProc *sloMetricsProcessor) mergeSLOConfigs(httpConfig, rpc2Confi
 		merged.SLOs["rpc2"] = make(map[string]EndpointSLOConfig)
         for key, value := range rpc2Config.SLOs["rpc2"] {
             merged.SLOs["rpc2"][key] = value
+        }
+    }
+
+	// Initialize the "grpc" section if it exists in the rpc2Config
+    if rpc2Config.SLOs["grpc"] != nil {
+        merged.SLOs["grpc"] = make(map[string]EndpointSLOConfig)
+        for key, value := range rpc2Config.SLOs["grpc"] {
+            merged.SLOs["grpc"][key] = value
         }
     }
 
@@ -522,6 +535,15 @@ func (sloMetricsProc *sloMetricsProcessor) readSLOConfigFile(sloConfigFile strin
 
 // ensureFileExists checks if a file exists and creates an empty file if missing
 func ensureFileExists(filePath string, logger *zap.Logger) error {
+	// Extract the directory path
+	dir := filepath.Dir(filePath)
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	// Check if the file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		logger.Info("SLO config file not found, creating an empty file", zap.String("file", filePath))
 
@@ -532,6 +554,7 @@ func ensureFileExists(filePath string, logger *zap.Logger) error {
 		}
 		file.Close() // Close the file after creating it
 	}
+
 	return nil
 }
 
