@@ -13,7 +13,6 @@ processors:
   slometricsemitter:
     environment: dev
     log_level: debug
-
 exporters:
   kafka:
     brokers: ["kafka:9092"]

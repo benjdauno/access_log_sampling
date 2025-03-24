@@ -3,17 +3,14 @@ package slometricsemitter
 import (
 	"fmt"
 	"slices"
-
 )
 
 type Config struct {
-	Environment      string `mapstructure:"environment"`
-	LogLevel         string `mapstructure:"log_level"`
+	Environment       string `mapstructure:"environment"`
+	LogLevel          string `mapstructure:"log_level"`
 }
 
 func (cfg *Config) Validate() error {
-
-
 	// Validate Environment
 	if !slices.Contains([]string{"dev", "thor", "stage", "prod"}, cfg.Environment) {
 		return fmt.Errorf("invalid environment: %s. Valid environments are dev, thor, stage, prod", cfg.Environment)

@@ -44,6 +44,7 @@ type sloMetricsProcessor struct {
 	requestCounter       metric.Int64Counter
 	environment          string // "dev", "stage", or "prod"
 	sync.Mutex    // Add a mutex for thread-safe operations
+	s3Client             S3Client
 }
 
 type IstioAccessLog struct {
@@ -54,11 +55,21 @@ type IstioAccessLog struct {
 	Duration     float64
 }
 
+var (
+    httpLocalPath = "/tmp/slo_configs/slo_master_http.yaml"
+    rpc2LocalPath = "/tmp/slo_configs/slo_master_rpc.yaml"
+)
+
 func (sloMetricsProc *sloMetricsProcessor) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
-// FetchSLOConfigFromS3 fetches the SLO config file from S3 and writes it to the specified path
+// Add this interface
+type S3Client interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+}
+
+// Modify the FetchSLOConfigFromS3 method to accept a client
 func (sloMetricsProc *sloMetricsProcessor) FetchSLOConfigFromS3(ctx context.Context, bucketName, httpLocalPath string, rpc2LocalPath string) error {
 	// Read the region from the environment variable REGION set in the pod
 	region := os.Getenv("REGION")
@@ -66,14 +77,19 @@ func (sloMetricsProc *sloMetricsProcessor) FetchSLOConfigFromS3(ctx context.Cont
 		// If REGION is not set in the environment, fallback to default region
 		region = "us-east-1"
 	}
-	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
-	if err != nil {
-		sloMetricsProc.logger.Error("Failed to load AWS config", zap.Error(err))
-		return err
+
+	// Use the provided client or create a new one
+	var s3Client S3Client
+	if sloMetricsProc.s3Client != nil {
+		s3Client = sloMetricsProc.s3Client
+	} else {
+		awsConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+		if err != nil {
+			sloMetricsProc.logger.Error("Failed to load AWS config", zap.Error(err))
+			return err
+		}
+		s3Client = s3.NewFromConfig(awsConfig)
 	}
-
-	s3Client := s3.NewFromConfig(awsConfig)
-
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, 2) // Buffer size of 2 to prevent blocking
@@ -114,7 +130,7 @@ func (sloMetricsProc *sloMetricsProcessor) FetchSLOConfigFromS3(ctx context.Cont
 }
 
 // fetchAndWriteS3FileToLocal fetches an object from S3 and writes it to a local file.
-func (sloMetricsProc *sloMetricsProcessor) fetchAndWriteS3FileToLocal(ctx context.Context, s3Client *s3.Client, bucketName, key, localPath string, logger *zap.Logger) error {
+func (sloMetricsProc *sloMetricsProcessor) fetchAndWriteS3FileToLocal(ctx context.Context, s3Client S3Client, bucketName, key, localPath string, logger *zap.Logger) error {
 	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(key),
@@ -163,12 +179,14 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 		bucketName = "affirm-prod-ops"
 	}
 
-	httpLocalPath := "/tmp/slo_configs/slo_master_http.yaml"
-	rpc2LocalPath := "/tmp/slo_configs/slo_master_rpc.yaml"
-
 	// Pull SLO config, at this point it should be a valid yaml file
 	err := sloMetricsProc.FetchSLOConfigFromS3(ctx, bucketName, httpLocalPath, rpc2LocalPath)
 	if err != nil {
+		dir, err := os.Getwd()
+		if err != nil {
+			sloMetricsProc.logger.Error("Error occurred", zap.Error(err))
+		}
+		sloMetricsProc.logger.Error("Current Directory", zap.String("directory", dir))
 		sloMetricsProc.logger.Error("Failed to fetch initial SLO config", zap.Error(err))
 		return err
 	}
@@ -176,7 +194,7 @@ func (sloMetricsProc *sloMetricsProcessor) Start(ctx context.Context, host compo
 	
 	// Start periodic refresh every hour
 	
-	go sloMetricsProc.startPeriodicRefresh(ctx, bucketName, httpLocalPath, rpc2LocalPath)
+	go sloMetricsProc.startPeriodicRefresh(ctx, bucketName, httpLocalPath, rpc2LocalPath, time.Hour)
 
 
 	// Set up internal otel telemetry
@@ -216,9 +234,9 @@ func (sloMetricsProc *sloMetricsProcessor) setupTelemetry() error {
 }
 
 
-func (sloMetricsProc *sloMetricsProcessor) startPeriodicRefresh(ctx context.Context, bucketName, httpLocalPath, rpc2LocalPath string) {
+func (sloMetricsProc *sloMetricsProcessor) startPeriodicRefresh(ctx context.Context, bucketName, httpLocalPath, rpc2LocalPath string, interval time.Duration) {
 	sloMetricsProc.logger.Info("Refreshing the slo config files")
-	ticker := time.NewTicker(1 * time.Hour)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -237,9 +255,6 @@ func (sloMetricsProc *sloMetricsProcessor) startPeriodicRefresh(ctx context.Cont
 
 
 func (sloMetricsProc *sloMetricsProcessor) reloadAndMergeSLOConfig() error {
-
-	httpLocalPath := "/tmp/slo_configs/slo_master_http.yaml"
-	rpc2LocalPath := "/tmp/slo_configs/slo_master_rpc.yaml"
 
 	// Read HTTP SLO config
 	httpConfig, err := sloMetricsProc.readSLOConfigFile(httpLocalPath)
