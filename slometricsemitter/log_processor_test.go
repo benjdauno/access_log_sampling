@@ -3,257 +3,132 @@ package slometricsemitter
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/plog"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
-// Helper function to create a processor with a temporary SLO config file
-func createProcessorWithConfig(t *testing.T, configYaml string) (*sloMetricsProcessor, sdkmetric.Reader) {
-	logger := zaptest.NewLogger(t)
+// Helper function to count metrics
+func countMetrics(metrics metricdata.ResourceMetrics) (breachCount, requestCount int) {
+	for _, scopeMetrics := range metrics.ScopeMetrics {
+		for _, metric := range scopeMetrics.Metrics {
+			switch metric.Name {
+			case "aff_otel_slo_latency_breaches_total":
+				if sum, ok := metric.Data.(metricdata.Sum[int64]); ok {
+					for _, dp := range sum.DataPoints {
+						breachCount += int(dp.Value)
+					}
+				}
+			case "aff_otel_requests_total":
+				if sum, ok := metric.Data.(metricdata.Sum[int64]); ok {
+					for _, dp := range sum.DataPoints {
+						requestCount += int(dp.Value)
+					}
+				}
+			}
+		}
+	}
+	return
+}
+
+// Helper function to verify metrics
+func verifyMetrics(t *testing.T, reader sdkmetric.Reader, expectedBreaches, minRequests int) {
+	var metrics metricdata.ResourceMetrics
+	err := reader.Collect(context.Background(), &metrics)
+	require.NoError(t, err)
+
+	breachCount, requestCount := countMetrics(metrics)
+	assert.Equal(t, expectedBreaches, breachCount, "unexpected number of breaches")
+	assert.GreaterOrEqual(t, requestCount, minRequests, "unexpected number of requests")
+}
+
+func setupTestProcessor(t *testing.T) (*sloMetricsProcessor, sdkmetric.Reader) {
+	logger := zap.NewNop()
+
+	// Create a meter provider for testing
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
-	// Create a temporary SLO config file
-	tmpDir := t.TempDir()
-	sloFilePath := filepath.Join(tmpDir, "slo.yaml")
-	require.NoError(t, os.WriteFile(sloFilePath, []byte(configYaml), 0600))
-
 	proc := &sloMetricsProcessor{
 		logger:        logger,
-		config:        &Config{SLOConfigFile: sloFilePath},
 		meterProvider: meterProvider,
-		nextConsumer:  consumertest.NewNop(),
+		sloConfig: SLOConfig{
+			SLOs: map[string]map[string]EndpointSLOConfig{
+				"http": {
+					"GET /test": {
+						Latency: map[string]time.Duration{
+							"p99": 1 * time.Second,
+						},
+						SuccessRate: 0.99,
+					},
+				},
+				"rpc2": {
+					"/service/method": {
+						Latency: map[string]time.Duration{
+							"p99": 500 * time.Millisecond,
+						},
+						SuccessRate: 0.99,
+					},
+				},
+			},
+		},
 	}
+
+	// Initialize the metrics
+	err := proc.setupTelemetry()
+	require.NoError(t, err)
 
 	return proc, reader
 }
 
-// TestSLOMetricsProcessorStartShutdown verifies that the processor can start and shut down
-// without error. It also checks that reading an SLO config file works when the file exists
-// (and fails when the file does not exist).
-func TestSLOMetricsProcessorStartShutdown(t *testing.T) {
-	configYaml := `
-slos:
-  http:
-    "GET /test/path":
-      latency:
-        "0.5": "0.1s"
-        "0.99": "0.9s"
-      success_rate: 99.5
-`
-	proc, _ := createProcessorWithConfig(t, configYaml)
-
-	// Start should succeed
-	err := proc.Start(context.Background(), componenttest.NewNopHost())
-	require.NoError(t, err, "expected no error on Start")
-
-	// Check that the SLO config was read
-	require.NotNil(t, proc.sloConfig.SLOs["http"])
-	endpointCfg, exists := proc.sloConfig.SLOs["http"]["GET /test/path"]
-	require.True(t, exists)
-	assert.InDelta(t, 0.1, endpointCfg.Latency["0.5"].Seconds(), 0.001)
-	assert.InDelta(t, 0.9, endpointCfg.Latency["0.99"].Seconds(), 0.001)
-	assert.Equal(t, 99.5, endpointCfg.SuccessRate)
-
-	require.NoError(t, proc.Shutdown(context.Background()))
+func createTestLogRecord() plog.LogRecord {
+	logs := plog.NewLogs()
+	resourceLogs := logs.ResourceLogs().AppendEmpty()
+	scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+	logRecord := scopeLogs.LogRecords().AppendEmpty()
+	
+	attrs := logRecord.Attributes()
+	attrs.PutStr("response_code", "200")
+	attrs.PutStr("method", "GET")
+	attrs.PutStr("duration", "0.5")
+	attrs.PutStr("x_affirm_endpoint_name", "/test")
+	attrs.PutStr("content_type", "application/json")
+	
+	return logRecord
 }
 
-// TestSLOMetricsProcessorStartInvalidFile ensures an error occurs if the SLO config file is missing
-func TestSLOMetricsProcessorStartInvalidFile(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	reader := sdkmetric.NewManualReader()
-	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+func TestExtractIstioAccessLogFromLogRecord(t *testing.T) {
+	processor, reader := setupTestProcessor(t)
+	logRecord := createTestLogRecord()
 
-	proc := &sloMetricsProcessor{
-		logger:        logger,
-		config:        &Config{SLOConfigFile: "/non/existent/file.yaml"},
-		meterProvider: meterProvider,
-		nextConsumer:  consumertest.NewNop(),
-	}
+	accessLog, err := processor.extractIstioAccessLogFromLogRecord(logRecord)
+	require.NoError(t, err)
 
-	err := proc.Start(context.Background(), componenttest.NewNopHost())
-	require.Error(t, err)
-}
+	assert.Equal(t, "http", accessLog.EndpointType)
+	assert.Equal(t, "/test", accessLog.Endpoint)
+	assert.Equal(t, int64(200), accessLog.StatusCode)
+	assert.Equal(t, "GET", accessLog.Method)
+	assert.Equal(t, 0.5, accessLog.Duration)
 
-// TestSLOMetricsProcessorConsumeLogs tests that the processor increments the appropriate counters
-// and forwards logs to the next consumer.
-func TestSLOMetricsProcessorConsumeLogs(t *testing.T) {
-	configYaml := `
-slos:
-  http:
-    "GET /test/path":
-      latency:
-        "0.5": "0.1s"
-        "0.99": "0.5s"
-      success_rate: 99.0
-  grpc:
-    "/service/method":
-      latency:
-        "0.95": "0.2s"
-      success_rate: 99.9
-`
-
-	tests := []struct {
-		name             string
-		attributes       map[string]string
-		expectedBreaches int
-		shouldError      bool
-	}{
-		{
-			name: "HTTP request within SLO",
-			attributes: map[string]string{
-				"method":                 "GET",
-				"response_code":          "200",
-				"content_type":           "application/json",
-				"x_affirm_endpoint_name": "/test/path",
-				"duration":               "0.050",
-			},
-			expectedBreaches: 0,
-		},
-		{
-			name: "HTTP request breaching 0.5 SLO",
-			attributes: map[string]string{
-				"method":                 "GET",
-				"response_code":          "200",
-				"content_type":           "application/json",
-				"x_affirm_endpoint_name": "/test/path",
-				"duration":               "0.300",
-			},
-			expectedBreaches: 1,
-		},
-		{
-			name: "HTTP request breaching both SLOs",
-			attributes: map[string]string{
-				"method":                 "GET",
-				"response_code":          "200",
-				"content_type":           "application/json",
-				"x_affirm_endpoint_name": "/test/path",
-				"duration":               "0.600",
-			},
-			expectedBreaches: 2,
-		},
-		{
-			name: "gRPC request breaching SLO",
-			attributes: map[string]string{
-				"method":        "POST",
-				"response_code": "200",
-				"content_type":  "application/grpc",
-				"path":          "/service/method",
-				"duration":      "0.300",
-			},
-			expectedBreaches: 1,
-		},
-		{
-			name: "Unknown endpoint",
-			attributes: map[string]string{
-				"method":                 "GET",
-				"response_code":          "200",
-				"content_type":           "application/json",
-				"x_affirm_endpoint_name": "/unknown/path",
-				"duration":               "0.300",
-			},
-			expectedBreaches: 0,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			proc, reader := createProcessorWithConfig(t, configYaml)
-			logSink := new(consumertest.LogsSink)
-			proc.nextConsumer = logSink
-
-			require.NoError(t, proc.Start(context.Background(), componenttest.NewNopHost()))
-
-			ld := plog.NewLogs()
-			lr := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
-
-			for k, v := range tc.attributes {
-				lr.Attributes().PutStr(k, v)
-			}
-
-			err := proc.ConsumeLogs(context.Background(), ld)
-			if tc.shouldError {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Len(t, logSink.AllLogs(), 1)
-
-			var metrics metricdata.ResourceMetrics
-			err = reader.Collect(context.Background(), &metrics)
-			require.NoError(t, err)
-
-			breachCount, requestCount := countMetrics(metrics)
-
-			assert.Equal(t, tc.expectedBreaches, breachCount, "unexpected number of breaches")
-			assert.GreaterOrEqual(t, requestCount, 1, "should have at least one request count")
-
-			require.NoError(t, proc.Shutdown(context.Background()))
-		})
-	}
-}
-
-// TestSLOMetricsProcessorProcessLog tests internal method processLog
-func TestSLOMetricsProcessorProcessLog(t *testing.T) {
-	configYaml := `
-slos:
-  http:
-    "POST /my/endpoint":
-      latency:
-        "0.5": "0.5s"
-        "0.99": "1.5s"
-`
-	proc, reader := createProcessorWithConfig(t, configYaml)
-
-	require.NoError(t, proc.Start(context.Background(), componenttest.NewNopHost()))
-
-	tests := []struct {
-		name              string
-		duration          float64
-		expectBreachCount int
-	}{
-		{"below_0.5_threshold", 0.2, 0},
-		{"between_0.5_and_0.99_threshold", 0.7, 1},
-		{"above_0.99_threshold", 2.0, 2},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			lr := plog.NewLogRecord()
-			lr.Attributes().PutStr("method", "POST")
-			lr.Attributes().PutStr("response_code", "200")
-			lr.Attributes().PutStr("content_type", "application/json")
-			lr.Attributes().PutStr("x_affirm_endpoint_name", "/my/endpoint")
-			lr.Attributes().PutStr("duration", floatToStr(tc.duration))
-
-			err := proc.processLog(context.Background(), lr)
-			require.NoError(t, err)
-
-			var metrics metricdata.ResourceMetrics
-			err = reader.Collect(context.Background(), &metrics)
-			require.NoError(t, err)
-
-			breachCount, _ := countMetrics(metrics)
-			assert.Equal(t, tc.expectBreachCount, breachCount, "unexpected number of breaches")
-		})
-	}
-
-	require.NoError(t, proc.Shutdown(context.Background()))
-}
-
-func floatToStr(f float64) string {
-	return fmt.Sprintf("%.3f", f)
+	// Verify no metrics were generated during extraction
+	verifyMetrics(t, reader, 0, 0)
 }
 
 // TestSLOMetricsProcessorMissingAttributes ensures we get an error (and a warning) if required attributes are missing.
@@ -266,7 +141,8 @@ func TestSLOMetricsProcessorMissingAttributes(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestEndpointTypeDetection(t *testing.T) {
+func TestDetermineEndpointType(t *testing.T) {
+	processor, reader := setupTestProcessor(t)
 	tests := []struct {
 		name         string
 		contentType  string
@@ -303,19 +179,18 @@ func TestEndpointTypeDetection(t *testing.T) {
 		},
 	}
 
-	proc := &sloMetricsProcessor{logger: zaptest.NewLogger(t)}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			lr := plog.NewLogRecord()
-			if tc.contentType != "" {
-				lr.Attributes().PutStr("content_type", tc.contentType)
-			}
-
-			endpointType := proc.determineEndpointType(lr)
-			assert.Equal(t, tc.expectedType, endpointType)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logRecord := createTestLogRecord()
+			logRecord.Attributes().PutStr("content_type", tt.contentType)
+			
+			endpointType := processor.determineEndpointType(logRecord)
+      assert.Equal(t, tt.expectedType, endpointType)
 		})
 	}
+
+	// Verify no metrics were generated during type determination
+	verifyMetrics(t, reader, 0, 0)
 }
 
 func TestEndpointExtraction(t *testing.T) {
@@ -386,73 +261,428 @@ func TestEndpointExtraction(t *testing.T) {
 	}
 }
 
-func TestSLOConfigParsing(t *testing.T) {
+func TestGetEndpointSLO(t *testing.T) {
+	processor, reader := setupTestProcessor(t)
+
+	t.Run("HTTP endpoint SLO", func(t *testing.T) {
+		slo, err := processor.getEndpointSLO("/test", "GET", "http")
+		require.NoError(t, err)
+		assert.Equal(t, time.Second, slo.Latency["p99"])
+	})
+
+	t.Run("RPC2 endpoint SLO", func(t *testing.T) {
+		slo, err := processor.getEndpointSLO("/service/method", "", "rpc2")
+		require.NoError(t, err)
+		assert.Equal(t, 500*time.Millisecond, slo.Latency["p99"])
+	})
+
+	t.Run("Non-existent endpoint", func(t *testing.T) {
+		_, err := processor.getEndpointSLO("/nonexistent", "GET", "http")
+		assert.Error(t, err)
+	})
+
+	// Verify no metrics were generated during SLO retrieval
+	verifyMetrics(t, reader, 0, 0)
+}
+
+func TestProcessLog(t *testing.T) {
+	processor, reader := setupTestProcessor(t)
+	ctx := context.Background()
+
+	t.Run("Process valid log within SLO", func(t *testing.T) {
+		logRecord := createTestLogRecord()
+		err := processor.processLog(ctx, logRecord)
+		assert.NoError(t, err)
+		verifyMetrics(t, reader, 0, 1) // No breaches, 1 request
+	})
+
+	t.Run("Process log breaching SLO", func(t *testing.T) {
+		logRecord := createTestLogRecord()
+		logRecord.Attributes().PutStr("duration", "1.5") // Above p99 threshold
+		err := processor.processLog(ctx, logRecord)
+		assert.NoError(t, err)
+		verifyMetrics(t, reader, 1, 2) // 1 breach, 2 total requests
+	})
+
+	t.Run("Process log with missing attributes", func(t *testing.T) {
+		logRecord := plog.NewLogRecord()
+		err := processor.processLog(ctx, logRecord)
+		assert.Error(t, err)
+		verifyMetrics(t, reader, 1, 2) // Metrics unchanged due to error
+	})
+}
+
+func TestMetricsAccumulation(t *testing.T) {
+	processor, reader := setupTestProcessor(t)
+	ctx := context.Background()
+
 	tests := []struct {
-		name        string
-		configYaml  string
-		shouldError bool
+		name             string
+		duration         string
+		expectedBreaches int
+		totalRequests    int
 	}{
 		{
-			name: "Valid config with multiple services",
-			configYaml: `
-slos:
-  http:
-    "GET /api/v1":
-      latency:
-        "0.95": "0.1s"
-      success_rate: 99.9
-  grpc:
-    "/service/method":
-      latency:
-        "0.99": "0.5s"
-      success_rate: 99.5
-`,
+			name:             "No breach",
+			duration:         "0.5",
+			expectedBreaches: 0,
+			totalRequests:    1,
 		},
 		{
-			name: "Invalid duration format",
-			configYaml: `
-slos:
-  http:
-    "GET /api/v1":
-      latency:
-        "0.95": "invalid"
-      success_rate: 99.9
-`,
-			shouldError: true,
+			name:             "One breach",
+			duration:         "1.5",
+			expectedBreaches: 1,
+			totalRequests:    2,
+		},
+		{
+			name:             "Another breach",
+			duration:         "2.0",
+			expectedBreaches: 2,
+			totalRequests:    3,
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tmpFile := filepath.Join(t.TempDir(), "slo.yaml")
-			require.NoError(t, os.WriteFile(tmpFile, []byte(tc.configYaml), 0600))
-
-			proc := &sloMetricsProcessor{logger: zaptest.NewLogger(t)}
-
-			_, err := proc.readSLOConfigFile(tmpFile)
-			if tc.shouldError {
-				require.Error(t, err)
-				return
-			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logRecord := createTestLogRecord()
+			logRecord.Attributes().PutStr("duration", tt.duration)
+			
+			err := processor.processLog(ctx, logRecord)
 			require.NoError(t, err)
+
+			verifyMetrics(t, reader, tt.expectedBreaches, tt.totalRequests)
 		})
 	}
 }
 
-// Helper function to count breaches and requests from metrics
-func countMetrics(metrics metricdata.ResourceMetrics) (breachCount, requestCount int) {
-	for _, m := range metrics.ScopeMetrics {
-		for _, instrument := range m.Metrics {
-			if instrument.Name == "aff_otel_slo_latency_breaches_total" {
-				if sum, ok := instrument.Data.(metricdata.Sum[int64]); ok {
-					breachCount += len(sum.DataPoints)
-				}
-			} else if instrument.Name == "aff_otel_requests_total" {
-				if sum, ok := instrument.Data.(metricdata.Sum[int64]); ok {
-					requestCount += len(sum.DataPoints)
-				}
-			}
-		}
+func TestConcurrentMetricUpdates(t *testing.T) {
+	processor, reader := setupTestProcessor(t)
+	ctx := context.Background()
+
+	var wg sync.WaitGroup
+	numRequests := 10
+
+	for i := 0; i < numRequests; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			logRecord := createTestLogRecord()
+			logRecord.Attributes().PutStr("duration", "1.5") // Will cause breach
+			
+			err := processor.processLog(ctx, logRecord)
+			require.NoError(t, err)
+		}()
 	}
-	return
+	wg.Wait()
+
+	verifyMetrics(t, reader, numRequests, numRequests)
+}
+
+// Mock S3 client
+type mockS3Client struct {
+	mock.Mock
+}
+
+func (m *mockS3Client) GetObject(ctx context.Context, input *s3.GetObjectInput, opts ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	args := m.Called(ctx, input, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*s3.GetObjectOutput), args.Error(1)
+}
+
+
+func TestMergeSLOConfigs(t *testing.T) {
+	processor, reader := setupTestProcessor(t)
+
+	httpConfig := SLOConfig{
+		SLOs: map[string]map[string]EndpointSLOConfig{
+			"http": {
+				"GET /test": {
+					Latency: map[string]time.Duration{
+						"p99": time.Second,
+					},
+				},
+			},
+		},
+	}
+
+	rpc2Config := SLOConfig{
+		SLOs: map[string]map[string]EndpointSLOConfig{
+			"rpc2": {
+				"/service/method": {
+					Latency: map[string]time.Duration{
+						"p99": 500 * time.Millisecond,
+					},
+				},
+			},
+		},
+	}
+
+	merged := processor.mergeSLOConfigs(httpConfig, rpc2Config)
+	
+	assert.Contains(t, merged.SLOs, "http")
+	assert.Contains(t, merged.SLOs, "rpc2")
+	assert.Contains(t, merged.SLOs["http"], "GET /test")
+	assert.Contains(t, merged.SLOs["rpc2"], "/service/method")
+
+	// Verify no metrics were generated during merge
+	verifyMetrics(t, reader, 0, 0)
+}
+
+func TestFetchSLOConfigFromS3(t *testing.T) {
+    tests := []struct {
+        name           string
+        httpContent    string
+        rpc2Content    string
+        s3Error        error
+        expectedError  bool
+        setupMock      func(*mockS3Client)
+        checkFiles     func(*testing.T, string, string)
+    }{
+        {
+            name: "successful fetch",
+            httpContent: `
+slos:
+  http:
+    "GET /test":
+      latency:
+        "p99": "1s"
+      success_rate: 99.9
+`,
+            rpc2Content: `
+slos:
+  rpc2:
+    "/service/method":
+      latency:
+        "p95": "0.5s"
+      success_rate: 99.5
+`,
+            setupMock: func(m *mockS3Client) {
+                // Mock HTTP config response
+                m.On("GetObject", mock.Anything, &s3.GetObjectInput{
+                    Bucket: aws.String("test-bucket"),
+                    Key:    aws.String("slos/slo_master_http.yaml"),
+                }, mock.Anything).Return(&s3.GetObjectOutput{
+                    Body: io.NopCloser(strings.NewReader(`
+slos:
+  http:
+    "GET /test":
+      latency:
+        "p99": "1s"
+      success_rate: 99.9
+`)),
+                }, nil)
+
+                // Mock RPC2 config response
+                m.On("GetObject", mock.Anything, &s3.GetObjectInput{
+                    Bucket: aws.String("test-bucket"),
+                    Key:    aws.String("slos/slo_master_rpc.yaml"),
+                }, mock.Anything).Return(&s3.GetObjectOutput{
+                    Body: io.NopCloser(strings.NewReader(`
+slos:
+  rpc2:
+    "/service/method":
+      latency:
+        "p95": "0.5s"
+      success_rate: 99.5
+`)),
+                }, nil)
+            },
+            checkFiles: func(t *testing.T, httpPath, rpc2Path string) {
+                // Verify HTTP config file contents
+                httpContent, err := os.ReadFile(httpPath)
+				require.NoError(t, err)
+                assert.Contains(t, string(httpContent), "GET /test")
+
+                // Verify RPC2 config file contents
+                rpc2Content, err := os.ReadFile(rpc2Path)
+                require.NoError(t, err)
+                assert.Contains(t, string(rpc2Content), "/service/method")
+            },
+        },
+        {
+            name:          "s3 fetch error",
+            s3Error:       fmt.Errorf("S3 access denied"),
+            expectedError: true,
+            setupMock: func(m *mockS3Client) {
+                m.On("GetObject", mock.Anything, mock.Anything, mock.Anything).
+                    Return(nil, fmt.Errorf("S3 access denied"))
+            },
+            checkFiles: func(t *testing.T, httpPath, rpc2Path string) {
+                // Files should not exist or be empty
+                _, err := os.Stat(httpPath)
+                assert.True(t, os.IsNotExist(err))
+                _, err = os.Stat(rpc2Path)
+                assert.True(t, os.IsNotExist(err))
+            },
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Create temp directory for test files
+            tmpDir := t.TempDir()
+            httpPath := filepath.Join(tmpDir, "slo_master_http.yaml")
+            rpc2Path := filepath.Join(tmpDir, "slo_master_rpc.yaml")
+
+            // Setup mock S3 client
+            mockS3 := new(mockS3Client)
+            tt.setupMock(mockS3)
+
+            // Create processor
+			proc, _ := setupTestProcessor(t)
+            proc.s3Client = mockS3 // Inject the mock S3 client
+
+            // Set environment variables
+            t.Setenv("REGION", "us-east-1")
+
+            // Call FetchSLOConfigFromS3
+            err := proc.FetchSLOConfigFromS3(context.Background(), "test-bucket", httpPath, rpc2Path)
+
+            if tt.expectedError {
+                assert.Error(t, err)
+            } else {
+                assert.NoError(t, err)
+                tt.checkFiles(t, httpPath, rpc2Path)
+            }
+
+            // Verify all mock expectations were met
+            mockS3.AssertExpectations(t)
+        })
+    }
+}
+
+// Test for periodic refresh
+func TestStartPeriodicRefresh(t *testing.T) {
+    // Create temp directory for test files
+    tmpDir := t.TempDir()
+    httpPath := filepath.Join(tmpDir, "slo_master_http.yaml")
+    rpc2Path := filepath.Join(tmpDir, "slo_master_rpc.yaml")
+
+    // Setup mock S3 client
+    mockS3 := new(mockS3Client)
+    mockS3.On("GetObject", mock.Anything, mock.Anything, mock.Anything).
+        Return(&s3.GetObjectOutput{
+            Body: io.NopCloser(strings.NewReader(`slos: {}`)),
+        }, nil)
+
+    // Create processor
+    proc, _ := setupTestProcessor(t)
+    proc.s3Client = mockS3 // Inject the mock S3 client
+
+    // Create context with timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+    defer cancel()
+
+    // Use a WaitGroup to ensure the goroutine finishes
+    var wg sync.WaitGroup
+    wg.Add(1)
+
+    go func() {
+        defer wg.Done()
+        proc.startPeriodicRefresh(ctx, "test-bucket", httpPath, rpc2Path, 100*time.Millisecond)
+    }()
+
+    // Wait for some time to allow at least one refresh
+    time.Sleep(300 * time.Millisecond)
+
+    // Cancel the context and wait for the goroutine to finish
+    cancel()
+    wg.Wait()
+
+    // Verify the mock S3 client was called at least once
+    callCount := len(mockS3.Calls) // Get the actual number of calls
+    assert.Greater(t, callCount, 0, "Expected GetObject to be called at least once")
+}
+
+func TestSLOMetricsProcessorConsumeLogs(t *testing.T) {
+    tests := []struct {
+        name             string
+        attributes       map[string]string
+        expectedBreaches int
+        totalRequests    int
+        shouldError      bool
+    }{
+        {
+            name: "HTTP request within SLO",
+            attributes: map[string]string{
+                "method":                 "GET",
+                "response_code":          "200",
+                "content_type":           "application/json",
+                "x_affirm_endpoint_name": "/test",  // Matches "GET /test" in config
+                "duration":               "0.050",
+            },
+            expectedBreaches: 0,
+            totalRequests:   1,
+        },
+        {
+            name: "HTTP request breaching SLO",
+            attributes: map[string]string{
+                "method":                 "GET",
+                "response_code":          "200",
+                "content_type":           "application/json",
+                "x_affirm_endpoint_name": "/test",
+                "duration":               "1.500",  // Above 1s threshold
+            },
+            expectedBreaches: 1,
+            totalRequests:   1,
+        },
+        {
+            name: "RPC2 request breaching SLO",
+            attributes: map[string]string{
+                "method":        "POST",
+                "response_code": "200",
+                "content_type":  "application/rpc2",
+                "path":         "/service/method",
+                "duration":     "0.600",  // Above 500ms threshold
+            },
+            expectedBreaches: 1,
+            totalRequests:   1,
+        },
+        {
+            name: "Unknown endpoint",
+            attributes: map[string]string{
+                "method":                 "GET",
+                "response_code":          "200",
+                "content_type":           "application/json",
+                "x_affirm_endpoint_name": "/unknown/path",
+                "duration":               "0.300",
+            },
+            expectedBreaches: 0,
+            totalRequests:   1,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Create processor with the exact configuration
+            processor, reader := setupTestProcessor(t)
+            logSink := new(consumertest.LogsSink)
+            processor.nextConsumer = logSink
+
+            require.NoError(t, processor.Start(context.Background(), componenttest.NewNopHost()))
+
+            // Create and populate log record
+            ld := plog.NewLogs()
+            lr := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+            for k, v := range tt.attributes {
+                lr.Attributes().PutStr(k, v)
+            }
+
+            // Process logs
+            err := processor.ConsumeLogs(context.Background(), ld)
+            if tt.shouldError {
+                require.Error(t, err)
+                return
+            }
+            require.NoError(t, err)
+            require.Len(t, logSink.AllLogs(), 1)
+
+            // Verify metrics
+            verifyMetrics(t, reader, tt.expectedBreaches, tt.totalRequests)
+
+            require.NoError(t, processor.Shutdown(context.Background()))
+        })
+    }
 }

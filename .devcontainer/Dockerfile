@@ -1,5 +1,5 @@
 # Start from a Go image for convenience
-FROM golang:1.22-bullseye
+FROM golang:1.23-bullseye
 
 # Install prerequisites
 RUN apt-get update && apt-get install -y \
@@ -28,7 +28,7 @@ RUN curl --proto '=https' --tlsv1.2 -fL -o /tmp/ocb \
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest &&\
     go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@v0.119.0 &&\
-    go install golang.org/x/tools/cmd/goimports@latest &&\
+    go install golang.org/x/tools/cmd/goimports@v0.30.0 &&\
     go install golang.org/x/tools/gopls@v0.16.1
 
 
